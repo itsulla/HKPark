@@ -1,0 +1,207 @@
+{
+  "project": "HK Theme Park Tycoon",
+  "branchName": "ralph/phase-1-foundation",
+  "description": "Phase 1: Project setup, core types, data files, grid system, and game loop foundation",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Project scaffolding and core type system",
+      "description": "Initialize Next.js 14 project with TypeScript strict mode and App Router. Install pixi.js, @pixi/react, zustand, immer, uuid, howler. Create the full type system in src/engine/types/index.ts with all enums (TileType, GuestState, RideCategory, ShopCategory, StaffType, Weather, GameSpeed, Season, ToolType) and interfaces (Tile, GameDate, Ride, RideDefinition, Shop, ShopDefinition, Guest, Staff, District, FinancialReport, GameState). Create the directory structure: src/engine/core/, src/engine/simulation/, src/engine/world/, src/engine/types/, src/renderer/layers/, src/ui/, src/state/, src/data/, src/assets/. Empty placeholder files with TODO comments where needed.",
+      "acceptanceCriteria": [
+        "Next.js 14 project initializes with TypeScript strict mode",
+        "All packages installed: pixi.js @pixi/react zustand immer uuid howler",
+        "src/engine/types/index.ts contains all enums and interfaces from the build plan",
+        "Directory structure matches the architecture spec",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Refer to hk-theme-park-tycoon-build-plan.md for the complete type definitions and architecture layout."
+    },
+    {
+      "id": "US-002",
+      "title": "Game data files (rides, shops, districts)",
+      "description": "Create src/data/rides.json with 12 HK-themed ride definitions (Dragon Coaster, Junk Boat Cruise, Peak Tram Drop Tower, Dim Sum Spinner, Neon Night Flyer, Temple Garden Train, Harbour Ferris Wheel, Typhoon Twister, Bamboo Scaffold Climb, Lion Dance Carousel, Star Ferry Splash, Kowloon Walled City Maze). Create src/data/shops.json with 8 shops (Dai Pai Dong, Egg Waffle Stand, Milk Tea Shop, Souvenir Pagoda, Bubble Tea Bar, Noodle House, Ice Cream Junk, First Aid Station). Create src/data/districts.json with 6 HK districts (Mong Kok Market as starter, Tsim Sha Tsui Waterfront, Lantau Highlands, Central Business District, Aberdeen Fishing Village, Kowloon Peak). All data must conform to the TypeScript interfaces defined in US-001.",
+      "acceptanceCriteria": [
+        "rides.json has 12 entries matching RideDefinition interface",
+        "shops.json has 8 entries matching ShopDefinition interface",
+        "districts.json has 6 entries matching District interface",
+        "Mong Kok Market is free and unlocked by default",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "See build plan for exact stats, costs, footprints, and descriptions for each item."
+    },
+    {
+      "id": "US-003",
+      "title": "Grid system and tile management",
+      "description": "Build src/engine/world/Grid.ts - Grid class with: constructor(width, height) creating 2D Tile array initialized to EMPTY; getTile(x,y) with bounds checking; setTile(x,y,type); canPlaceEntity(x,y,w,h) checking all tiles in footprint are EMPTY and buildable; placeEntity(entityId,tiles[]) marking tiles; removeEntity(entityId) clearing tiles; getNeighbors(x,y) returning adjacent walkable tiles; calculateSceneryScore(x,y,radius) counting decorations nearby. Include unit tests.",
+      "acceptanceCriteria": [
+        "Grid class creates correct 2D tile array",
+        "canPlaceEntity properly validates footprint boundaries and buildability",
+        "placeEntity and removeEntity correctly update tile states",
+        "getNeighbors returns only valid, walkable adjacent tiles",
+        "calculateSceneryScore counts decorations within given radius",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "A* pathfinding with caching",
+      "description": "Build src/engine/world/Pathfinder.ts - Pathfinder class with: findPath(grid, startX, startY, endX, endY) returning {x,y}[] using A* on PATH tiles with Manhattan distance heuristic. Add path caching: cache key = 'startX,startY-endX,endY', invalidate cache when grid changes. Add maxIterations limit (2000) to prevent browser freezing. Return empty array if no path found.",
+      "acceptanceCriteria": [
+        "A* pathfinding finds shortest path on PATH tiles",
+        "Returns empty array when no path exists",
+        "Path cache stores and returns cached results",
+        "Cache invalidates when grid is modified",
+        "maxIterations prevents infinite loops",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "EventBus and GameLoop core",
+      "description": "Build src/engine/core/EventBus.ts - typed pub/sub event system with on(event, callback), off(event, callback), emit(event, data). Define game event types: GUEST_SPAWNED, GUEST_LEFT, RIDE_BROKEN, RIDE_FIXED, MONEY_CHANGED, MONTH_END, YEAR_END, WEATHER_CHANGED, DISTRICT_UNLOCKED. Build src/engine/core/GameLoop.ts - GameLoop class using requestAnimationFrame. Manages tick accumulation with speed multiplier (PAUSED=0, NORMAL=1, FAST=2, ULTRA=4). Calls registered update callbacks each tick. Exposes start(), stop(), setSpeed(), getCurrentTick().",
+      "acceptanceCriteria": [
+        "EventBus correctly subscribes, unsubscribes, and emits typed events",
+        "GameLoop runs at correct tick rates per speed setting",
+        "PAUSED speed produces zero ticks",
+        "GameLoop properly accumulates and dispatches ticks",
+        "start() and stop() correctly control the loop",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Zustand game store and save manager",
+      "description": "Build src/state/gameStore.ts - Zustand store with immer middleware containing the full GameState. Include actions: initializeGame(parkName), placePath(x,y), placeRide(definitionId,x,y,rotation), placeShop(definitionId,x,y), demolish(x,y), setSpeed(speed), setTool(tool), unlockDistrict(districtId). Build src/state/saveManager.ts - IndexedDB save/load with saveGame() serializing state and loadGame() restoring it. Auto-save every 5 minutes of game time.",
+      "acceptanceCriteria": [
+        "Zustand store initializes with correct default GameState",
+        "All placement actions correctly update grid and entity maps",
+        "Demolish action properly clears tiles and removes entities",
+        "saveManager serializes and deserializes game state to IndexedDB",
+        "Auto-save triggers at correct intervals",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Use Maps serialization: convert to/from arrays for IndexedDB storage."
+    },
+    {
+      "id": "US-007",
+      "title": "Economy manager and financial reports",
+      "description": "Build src/engine/simulation/EconomyManager.ts. Tracks cash, revenue streams (rides, shops, entrance fees), expenses (staff wages, ride maintenance, loan interest). Implements: processMonthEnd() generating FinancialReport, takeLoan(amount) with 10% annual interest, repayLoan(amount), calculateRideValue(ride) using the adapted OpenRCT2 formula with ride-type multipliers. Emit MONEY_CHANGED and MONTH_END events.",
+      "acceptanceCriteria": [
+        "Monthly financial reports accurately sum all revenue and expense categories",
+        "Loan system correctly applies interest monthly",
+        "Ride value formula uses correct multipliers per ride category",
+        "MONEY_CHANGED fires on any cash transaction",
+        "MONTH_END fires with completed FinancialReport",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Ride value formula: rideValue = ((excitement * excitementMultiplier * 32) >> 15) + ((intensity * intensityMultiplier * 32) >> 15) + ((nausea * nauseaMultiplier * 32) >> 15)"
+    },
+    {
+      "id": "US-008",
+      "title": "Guest AI state machine and needs system",
+      "description": "Build src/engine/simulation/GuestManager.ts. Guest spawning based on park rating and time. Guest state machine: ENTERING->WALKING->QUEUING->RIDING->WALKING->... with SHOPPING/EATING/SITTING branches. Needs-based decision making: hunger/thirst/nausea/energy drive behavior. Happiness system: happinessTarget adjusts based on experiences, actual happiness gravitates toward target. Guest pathfinding to chosen targets. Thought bubbles for current need ('I'm hungry!', 'What a great ride!'). Guests leave when cash runs out, energy depleted, or happiness too low.",
+      "acceptanceCriteria": [
+        "Guests spawn at entrance at rate proportional to park rating",
+        "State machine transitions correctly between all states",
+        "Needs (hunger, thirst, etc.) increase over time and drive decisions",
+        "Happiness gravitates toward happinessTarget",
+        "Guests pathfind to rides, shops, and exits",
+        "Guests leave park under correct exit conditions",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Keep guest count reasonable for browser performance. Cap at ~200 active guests initially."
+    },
+    {
+      "id": "US-009",
+      "title": "Ride manager with queues and breakdowns",
+      "description": "Build src/engine/simulation/RideManager.ts. Manages ride operations: queue processing (guests join queue, wait, board, ride for rideDurationTicks, exit), capacity enforcement. Ride ratings modified by: scenery within 5 tiles (+0.4 excitement per decoration), proximity to other rides, age/novelty decay, maintenance level. Breakdown system: random chance per month based on ride breakdownChance, broken rides close until mechanic arrives. Track totalCustomers and totalRevenue per ride.",
+      "acceptanceCriteria": [
+        "Guests queue and board rides respecting capacity limits",
+        "Ride duration ticks are respected before guests exit",
+        "Scenery proximity modifies excitement rating",
+        "Ride novelty decays with age (monthsOld)",
+        "Breakdowns occur randomly and close the ride",
+        "Revenue tracking per ride is accurate",
+        "npm run build passes with zero TypeScript errors"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "PixiJS renderer with isometric camera",
+      "description": "Build the rendering layer: src/renderer/GameCanvas.tsx wrapping PIXI.Application in a React component. src/renderer/Camera.ts with pan (click-drag), zoom (scroll wheel, 0.5x-3x range), smooth interpolation. src/renderer/IsometricUtils.ts with screenToGrid and gridToScreen transforms for 2:1 isometric. src/renderer/layers/TerrainLayer.ts rendering ground tiles with colored rectangles (green=empty, gray=path, blue=water). src/renderer/layers/BuildingLayer.ts rendering rides and shops as colored footprint rectangles with name labels. Build src/app/game/page.tsx as the main game page mounting the canvas.",
+      "acceptanceCriteria": [
+        "PixiJS canvas renders and fills the game page",
+        "Camera pan works with click-drag",
+        "Camera zoom works with scroll wheel within 0.5x-3x range",
+        "Isometric coordinate transforms are correct (screen<->grid)",
+        "Terrain tiles render with distinct colors per type",
+        "Rides and shops render as labeled colored rectangles",
+        "npm run build passes with zero TypeScript errors",
+        "Verify in browser: canvas renders, camera controls work"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Use placeholder colored rectangles for all sprites initially. Proper art comes later."
+    },
+    {
+      "id": "US-011",
+      "title": "UI overlay - toolbar, top bar, and info panel",
+      "description": "Build React UI overlay components: src/ui/TopBar.tsx showing money (with $ formatting), current date, game speed controls (pause/1x/2x/4x buttons), guest count. src/ui/Toolbar.tsx at bottom with build tool buttons (Select, Path, Ride, Shop, Decoration, Demolish, Terraform) that set the active ToolType in store. src/ui/InfoPanel.tsx sidebar that shows details of selected entity (ride stats, shop revenue, guest mood). All components read from and dispatch to the Zustand store. Style with Tailwind - dark semi-transparent panels overlaying the game canvas.",
+      "acceptanceCriteria": [
+        "TopBar displays money, date, speed controls, and guest count",
+        "Speed buttons correctly change GameSpeed in store",
+        "Toolbar shows all tool buttons and updates selectedTool",
+        "InfoPanel displays correct details for selected rides, shops, and guests",
+        "UI overlays render on top of the PixiJS canvas",
+        "Dark semi-transparent styling with Tailwind",
+        "npm run build passes with zero TypeScript errors",
+        "Verify in browser: all UI panels visible and interactive"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Build mode - placing paths, rides, and shops",
+      "description": "Implement interactive build mode: when Path tool selected, clicking grid tiles places PATH tiles and updates renderer. When Ride tool selected, show ride picker panel with all 12 rides from data, clicking one shows a ghost footprint following the cursor, click to place (if canPlaceEntity passes), right-click or R to rotate. When Shop tool selected, similar picker and placement. Demolish tool removes entities and resets tiles. Deduct costs from player money. Play placement sound effect. Wire everything through the Zustand store actions.",
+      "acceptanceCriteria": [
+        "Path tool places walkable path tiles on click",
+        "Ride picker shows all 12 rides with costs",
+        "Ride ghost footprint follows cursor and shows valid/invalid placement",
+        "Rotation works with R key or right-click",
+        "Placing a ride deducts correct cost from money",
+        "Shop placement works similarly to rides",
+        "Demolish tool removes entities and clears tiles",
+        "Cannot place if insufficient funds",
+        "npm run build passes with zero TypeScript errors",
+        "Verify in browser: full build workflow works"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
