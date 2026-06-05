@@ -1,0 +1,30 @@
+[
+  { "archetype": "coaster",      "accent": "red",     "out": "public/sprites/rides/dragon-coaster.png" },
+  { "archetype": "boat",         "accent": "jade",    "out": "public/sprites/rides/junk-boat-cruise.png" },
+  { "archetype": "drop_tower",   "accent": "cyan",    "out": "public/sprites/rides/peak-tram-drop.png" },
+  { "archetype": "spinner",      "accent": "gold",    "out": "public/sprites/rides/dim-sum-spinner.png" },
+  { "archetype": "coaster",      "accent": "magenta", "out": "public/sprites/rides/neon-night-flyer.png" },
+  { "archetype": "train",        "accent": "jade",    "out": "public/sprites/rides/temple-garden-train.png" },
+  { "archetype": "ferris",       "accent": "cyan",    "out": "public/sprites/rides/harbour-ferris-wheel.png" },
+  { "archetype": "drop_tower",   "accent": "teal",    "out": "public/sprites/rides/typhoon-twister.png" },
+  { "archetype": "scaffold",     "accent": "gold",    "out": "public/sprites/rides/bamboo-scaffold-climb.png" },
+  { "archetype": "carousel",     "accent": "red",     "out": "public/sprites/rides/lion-dance-carousel.png" },
+  { "archetype": "boat",         "accent": "cyan",    "out": "public/sprites/rides/star-ferry-splash.png" },
+  { "archetype": "maze",         "accent": "magenta", "out": "public/sprites/rides/kowloon-walled-city-maze.png" },
+
+  { "archetype": "stall", "accent": "red",     "out": "public/sprites/shops/dai-pai-dong.png" },
+  { "archetype": "stall", "accent": "gold",    "out": "public/sprites/shops/egg-waffle-stand.png" },
+  { "archetype": "stall", "accent": "jade",    "out": "public/sprites/shops/milk-tea-shop.png" },
+  { "archetype": "stall", "accent": "magenta", "out": "public/sprites/shops/souvenir-pagoda.png" },
+  { "archetype": "stall", "accent": "cyan",    "out": "public/sprites/shops/bubble-tea-bar.png" },
+  { "archetype": "stall", "accent": "red",     "out": "public/sprites/shops/noodle-house.png" },
+  { "archetype": "stall", "accent": "magenta", "out": "public/sprites/shops/ice-cream-junk.png" },
+  { "archetype": "stall", "accent": "white",   "out": "public/sprites/shops/first-aid-station.png" },
+
+  { "archetype": "lantern",        "accent": "gold", "out": "public/sprites/decorations/lantern.png" },
+  { "archetype": "bamboo_garden",  "accent": "jade", "out": "public/sprites/decorations/bamboo-garden.png" },
+  { "archetype": "fountain",       "accent": "cyan", "out": "public/sprites/decorations/fountain.png" },
+  { "archetype": "neon_sign",      "accent": "cyan", "out": "public/sprites/decorations/neon-sign.png" },
+  { "archetype": "bonsai",         "accent": "jade", "out": "public/sprites/decorations/bonsai-tree.png" },
+  { "archetype": "stone_lion",     "accent": "gold", "out": "public/sprites/decorations/stone-lion.png" }
+]

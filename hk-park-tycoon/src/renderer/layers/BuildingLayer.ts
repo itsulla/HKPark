@@ -10,7 +10,15 @@
 //   - Frustum culling: buildings outside the viewport are not drawn
 // =============================================================================
 
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import {
+  Container,
+  Graphics,
+  Sprite,
+  Text,
+  TextStyle,
+  Texture,
+  Assets,
+} from 'pixi.js';
 import { Ride, Shop, RideDefinition, ShopDefinition } from '../../engine/types';
 import { TILE_SIZE, ViewportBounds } from '../Camera';
 import ridesData from '../../data/rides.json';
@@ -96,11 +104,19 @@ interface CachedLabel {
 
 export class BuildingLayer extends Container {
   private gfx: Graphics;
+  private spritesContainer: Container;
   private labelsContainer: Container;
 
   // Label cache keyed by entity ID
   private rideLabelCache: Map<string, CachedLabel> = new Map();
   private shopLabelCache: Map<string, CachedLabel> = new Map();
+
+  // Sprite instances keyed by entity ID, and the loaded textures by definition ID
+  private rideSprites: Map<string, Sprite> = new Map();
+  private shopSprites: Map<string, Sprite> = new Map();
+  private rideTextures: Map<string, Texture> = new Map();
+  private shopTextures: Map<string, Texture> = new Map();
+  private texturesReady = false;
 
   // Dirty tracking
   private _dirty: boolean = true;
@@ -111,9 +127,34 @@ export class BuildingLayer extends Container {
   constructor() {
     super();
     this.gfx = new Graphics();
+    this.spritesContainer = new Container();
     this.labelsContainer = new Container();
     this.addChild(this.gfx);
+    this.addChild(this.spritesContainer);
     this.addChild(this.labelsContainer);
+    void this.loadTextures();
+  }
+
+  /** Preload ride/shop sprites; missing ones simply fall back to coloured rects. */
+  private async loadTextures(): Promise<void> {
+    const load = async (id: string, url: string, into: Map<string, Texture>) => {
+      try {
+        const tex = (await Assets.load(url)) as Texture;
+        if (tex) into.set(id, tex);
+      } catch {
+        // No sprite for this entity — the coloured-rect fallback handles it.
+      }
+    };
+    const jobs: Promise<void>[] = [];
+    for (const id of Array.from(rideDefMap.keys())) {
+      jobs.push(load(id, `/sprites/rides/${id}.png`, this.rideTextures));
+    }
+    for (const id of Array.from(shopDefMap.keys())) {
+      jobs.push(load(id, `/sprites/shops/${id}.png`, this.shopTextures));
+    }
+    await Promise.all(jobs);
+    this.texturesReady = true;
+    this.markDirty();
   }
 
   /** Force a full redraw on next update. */
@@ -151,9 +192,11 @@ export class BuildingLayer extends Container {
 
     this.gfx.clear();
 
-    // Track which labels are still in use this frame
+    // Track which labels/sprites are still in use this frame
     const usedRideLabels = new Set<string>();
     const usedShopLabels = new Set<string>();
+    const usedRideSprites = new Set<string>();
+    const usedShopSprites = new Set<string>();
 
     // -- Rides --
     for (const rideId in rides) {
@@ -180,9 +223,10 @@ export class BuildingLayer extends Container {
         maxY < viewportBounds.y ||
         minY > viewportBounds.y + viewportBounds.h
       ) {
-        // Hide the label if it exists
         const cached = this.rideLabelCache.get(rideId);
         if (cached) cached.text.visible = false;
+        const sp = this.rideSprites.get(rideId);
+        if (sp) sp.visible = false;
         continue;
       }
 
@@ -190,39 +234,54 @@ export class BuildingLayer extends Container {
       const py = minY * TILE_SIZE;
       const pw = (maxX - minX + 1) * TILE_SIZE;
       const ph = (maxY - minY + 1) * TILE_SIZE;
+      const borderColor = STATUS_COLORS[ride.status] ?? 0x95a5a6;
+      const tex = this.texturesReady ? this.rideTextures.get(ride.definitionId) : undefined;
 
-      // Fill
+      if (tex) {
+        // Sprite, bottom-centre anchored so tall rides rise out of the tile.
+        let sprite = this.rideSprites.get(rideId);
+        if (!sprite) {
+          sprite = new Sprite(tex);
+          sprite.anchor.set(0.5, 1);
+          this.spritesContainer.addChild(sprite);
+          this.rideSprites.set(rideId, sprite);
+        }
+        const size = Math.max(pw, ph) * 1.15;
+        sprite.texture = tex;
+        sprite.width = size;
+        sprite.height = size;
+        sprite.x = px + pw / 2;
+        sprite.y = py + ph;
+        sprite.visible = true;
+        usedRideSprites.add(rideId);
+        // Footprint status outline on the ground (open/broken/closed cue).
+        this.gfx.rect(px + 1, py + 1, pw - 2, ph - 2);
+        this.gfx.stroke({ color: borderColor, width: 2, alpha: 0.7 });
+        const cached = this.rideLabelCache.get(rideId);
+        if (cached) cached.text.visible = false;
+        continue;
+      }
+
+      // Fallback: coloured rect + name label
       const fillColor = RIDE_CATEGORY_COLORS[category] ?? 0x3498db;
       this.gfx.rect(px, py, pw, ph);
       this.gfx.fill({ color: fillColor, alpha: 0.85 });
-
-      // Status border
-      const borderColor = STATUS_COLORS[ride.status] ?? 0x95a5a6;
       this.gfx.rect(px + 1, py + 1, pw - 2, ph - 2);
       this.gfx.stroke({ color: borderColor, width: 2 });
 
-      // Cached label
       usedRideLabels.add(rideId);
       let cached = this.rideLabelCache.get(rideId);
-
       if (!cached) {
-        const label = new Text({
-          text: ride.name,
-          style: RIDE_LABEL_STYLE,
-        });
+        const label = new Text({ text: ride.name, style: RIDE_LABEL_STYLE });
         label.anchor.set(0.5);
         this.labelsContainer.addChild(label);
         cached = { text: label, entityId: rideId };
         this.rideLabelCache.set(rideId, cached);
       }
-
-      // Update position (ride may have been rebuilt in a different spot)
       cached.text.text = ride.name;
       cached.text.x = px + pw / 2;
       cached.text.y = py + ph / 2;
       cached.text.visible = true;
-
-      // Clamp word wrap width to footprint
       cached.text.style.wordWrap = true;
       cached.text.style.wordWrapWidth = pw - 4;
     }
@@ -245,43 +304,59 @@ export class BuildingLayer extends Container {
       ) {
         const cached = this.shopLabelCache.get(shopId);
         if (cached) cached.text.visible = false;
+        const sp = this.shopSprites.get(shopId);
+        if (sp) sp.visible = false;
         continue;
       }
 
       const px = tileX * TILE_SIZE;
       const py = tileY * TILE_SIZE;
+      const tex = this.texturesReady ? this.shopTextures.get(shop.definitionId) : undefined;
 
-      // Fill
+      if (tex) {
+        let sprite = this.shopSprites.get(shopId);
+        if (!sprite) {
+          sprite = new Sprite(tex);
+          sprite.anchor.set(0.5, 1);
+          this.spritesContainer.addChild(sprite);
+          this.shopSprites.set(shopId, sprite);
+        }
+        const size = TILE_SIZE * 1.25;
+        sprite.texture = tex;
+        sprite.width = size;
+        sprite.height = size;
+        sprite.x = px + TILE_SIZE / 2;
+        sprite.y = py + TILE_SIZE;
+        sprite.visible = true;
+        usedShopSprites.add(shopId);
+        const cached = this.shopLabelCache.get(shopId);
+        if (cached) cached.text.visible = false;
+        continue;
+      }
+
+      // Fallback: coloured rect + letter label
       const fillColor = SHOP_CATEGORY_COLORS[category] ?? 0xe67e22;
       this.gfx.rect(px, py, TILE_SIZE, TILE_SIZE);
       this.gfx.fill({ color: fillColor, alpha: 0.9 });
-
-      // Border
       this.gfx.rect(px + 1, py + 1, TILE_SIZE - 2, TILE_SIZE - 2);
       this.gfx.stroke({ color: 0xffffff, width: 1 });
 
-      // Cached label
       usedShopLabels.add(shopId);
       let cached = this.shopLabelCache.get(shopId);
-
       if (!cached) {
-        const label = new Text({
-          text: SHOP_LABELS[category] ?? '?',
-          style: SHOP_LABEL_STYLE,
-        });
+        const label = new Text({ text: SHOP_LABELS[category] ?? '?', style: SHOP_LABEL_STYLE });
         label.anchor.set(0.5);
         this.labelsContainer.addChild(label);
         cached = { text: label, entityId: shopId };
         this.shopLabelCache.set(shopId, cached);
       }
-
       cached.text.text = SHOP_LABELS[category] ?? '?';
       cached.text.x = px + TILE_SIZE / 2;
       cached.text.y = py + TILE_SIZE / 2;
       cached.text.visible = true;
     }
 
-    // Remove labels for demolished buildings
+    // Remove labels/sprites for demolished buildings
     this.rideLabelCache.forEach((cached, id) => {
       if (!usedRideLabels.has(id)) {
         this.labelsContainer.removeChild(cached.text);
@@ -294,6 +369,20 @@ export class BuildingLayer extends Container {
         this.labelsContainer.removeChild(cached.text);
         cached.text.destroy();
         this.shopLabelCache.delete(id);
+      }
+    });
+    this.rideSprites.forEach((sp, id) => {
+      if (!usedRideSprites.has(id) && !(id in rides)) {
+        this.spritesContainer.removeChild(sp);
+        sp.destroy();
+        this.rideSprites.delete(id);
+      }
+    });
+    this.shopSprites.forEach((sp, id) => {
+      if (!usedShopSprites.has(id) && !(id in shops)) {
+        this.spritesContainer.removeChild(sp);
+        sp.destroy();
+        this.shopSprites.delete(id);
       }
     });
 
