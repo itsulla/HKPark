@@ -4,7 +4,6 @@
 
 import { Staff, StaffType, Position } from '../types';
 import { Grid } from '../world/Grid';
-import { Pathfinder } from '../world/Pathfinder';
 import { v4 as uuidv4 } from 'uuid';
 
 // -----------------------------------------------------------------------------
@@ -12,7 +11,6 @@ import { v4 as uuidv4 } from 'uuid';
 // -----------------------------------------------------------------------------
 
 const STAFF_MOVE_SPEED = 0.05; // Tiles per tick
-const MECHANIC_SEARCH_RADIUS = 50;
 
 /** Default name templates by staff type */
 const STAFF_NAME_MAP: Record<StaffType, string> = {
@@ -73,14 +71,19 @@ export class StaffManager {
    *
    * All staff move at STAFF_MOVE_SPEED tiles per tick.
    */
+  /**
+   * @param brokenRideTargets Access tiles (real path tiles adjacent to each
+   *   broken ride's footprint) the mechanic should head toward. The game loop
+   *   performs the actual repair when the mechanic reaches one.
+   */
   processStaffTick(
     staff: Staff,
     grid: Grid,
-    brokenRides: string[],
+    brokenRideTargets: Position[],
   ): Staff {
     switch (staff.type) {
       case StaffType.MECHANIC:
-        return this.processMechanicTick(staff, grid, brokenRides);
+        return this.processMechanicTick(staff, grid, brokenRideTargets);
 
       case StaffType.JANITOR:
       case StaffType.SECURITY:
@@ -109,45 +112,34 @@ export class StaffManager {
   // ---------------------------------------------------------------------------
 
   /**
-   * Mechanics seek out broken rides. If there are broken rides and the
-   * mechanic has no current target, find the nearest broken ride (by
-   * Manhattan distance on the grid) and move toward it.
+   * Mechanics head toward the nearest BROKEN ride's access tile. Targets are
+   * supplied by the game loop (real path tiles adjacent to each broken ride),
+   * so the mechanic always moves toward something actually broken — not just
+   * the nearest ride of any status.
    */
   private processMechanicTick(
     staff: Staff,
     grid: Grid,
-    brokenRides: string[],
+    brokenRideTargets: Position[],
   ): Staff {
-    if (brokenRides.length === 0) {
-      // No broken rides -- wander as normal patrol
+    if (brokenRideTargets.length === 0) {
+      // Nothing to fix -- wander as normal patrol.
       return this.processPatrolTick(staff, grid);
     }
 
-    // Find the nearest broken ride tile
-    const nearestBrokenTile = Pathfinder.findNearestEntity(
-      grid,
-      staff.tile,
-      'ride-',
-      MECHANIC_SEARCH_RADIUS,
-    );
-
-    if (!nearestBrokenTile) {
-      return this.processPatrolTick(staff, grid);
+    // Pick the nearest broken-ride access tile by Manhattan distance.
+    let nearest = brokenRideTargets[0];
+    let bestDist = Infinity;
+    for (const target of brokenRideTargets) {
+      const dist =
+        Math.abs(target.x - staff.tile.x) + Math.abs(target.y - staff.tile.y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        nearest = target;
+      }
     }
 
-    // Find the nearest walkable tile adjacent to the broken ride
-    const walkableNeighbors = grid.getWalkableNeighbors(
-      nearestBrokenTile.x,
-      nearestBrokenTile.y,
-    );
-
-    if (walkableNeighbors.length === 0) {
-      return this.processPatrolTick(staff, grid);
-    }
-
-    // Move toward the target path tile adjacent to the broken ride
-    const targetTile = walkableNeighbors[0];
-    return this.moveToward(staff, targetTile);
+    return this.moveToward(staff, nearest);
   }
 
   // ---------------------------------------------------------------------------

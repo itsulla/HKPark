@@ -248,11 +248,13 @@ function GamePageInner() {
       const brokenRides = Object.keys(rides).filter(
         (id) => rides[id].status === 'broken',
       );
+      // Mechanics head toward each broken ride's access (entrance) tile.
+      const brokenRideTargets = brokenRides.map((id) => rides[id].entranceTile);
       for (const staffId of Object.keys(staff)) {
         staff[staffId] = staffManager.processStaffTick(
           staff[staffId],
           grid,
-          brokenRides,
+          brokenRideTargets,
         );
       }
 
@@ -282,9 +284,10 @@ function GamePageInner() {
       const janitorCount = Object.values(staff).filter(
         (s) => s.type === StaffType.JANITOR,
       ).length;
+      const baseLitter = Number.isFinite(store.litter) ? store.litter : 0;
       const newLitter = Math.max(
         0,
-        store.litter +
+        baseLitter +
           guestCount * LITTER_PER_GUEST_TICK -
           janitorCount * JANITOR_CLEAN_PER_TICK,
       );
@@ -315,6 +318,8 @@ function GamePageInner() {
       for (const rideId of Array.from(repairedRideIds)) {
         store.repairRide(rideId);
         const ride = rides[rideId];
+        // Keep the local clone in sync so this tick's rating sees the repair.
+        if (ride) ride.status = 'open';
         store.addNotification(
           `${ride ? ride.name : 'A ride'} was repaired by a mechanic.`,
           'success',

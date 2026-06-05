@@ -508,6 +508,11 @@ export const useGameStore = create<GameStore>()(
           }
         }
 
+        // Sanitize numeric fields a corrupt/old save could poison.
+        state.litter = Number.isFinite(state.litter)
+          ? Math.max(0, state.litter)
+          : 0;
+
         // Reset transient UI / selection state — never restored from a save.
         state.selectedTool = ToolType.SELECT;
         state.selectedEntityId = null;
@@ -605,9 +610,7 @@ export const useGameStore = create<GameStore>()(
         // Check adjacent to path
         if (!isAdjacentToPath(state.grid, x, y, w, h)) return;
 
-        // Prefix the id so grid-based entity searches (e.g. mechanics looking
-        // for broken rides via Pathfinder.findNearestEntity('ride-')) match.
-        const rideId = `ride-${uuidv4()}`;
+        const rideId = uuidv4();
 
         // Collect tile positions for the ride footprint
         const tiles: Position[] = [];
