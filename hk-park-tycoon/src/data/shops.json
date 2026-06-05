@@ -1,0 +1,82 @@
+[
+  {
+    "id": "dai-pai-dong",
+    "name": "Dai Pai Dong",
+    "category": "FOOD",
+    "cost": 5000,
+    "monthlyMaintenance": 200,
+    "revenuePerCustomer": 15,
+    "restockCost": 500,
+    "maxStock": 100
+  },
+  {
+    "id": "egg-waffle-stand",
+    "name": "Egg Waffle Stand",
+    "category": "FOOD",
+    "cost": 3000,
+    "monthlyMaintenance": 120,
+    "revenuePerCustomer": 8,
+    "restockCost": 300,
+    "maxStock": 80
+  },
+  {
+    "id": "milk-tea-shop",
+    "name": "Milk Tea Shop",
+    "category": "DRINK",
+    "cost": 4000,
+    "monthlyMaintenance": 150,
+    "revenuePerCustomer": 10,
+    "restockCost": 350,
+    "maxStock": 90
+  },
+  {
+    "id": "souvenir-pagoda",
+    "name": "Souvenir Pagoda",
+    "category": "SOUVENIR",
+    "cost": 6000,
+    "monthlyMaintenance": 250,
+    "revenuePerCustomer": 25,
+    "restockCost": 600,
+    "maxStock": 60
+  },
+  {
+    "id": "bubble-tea-bar",
+    "name": "Bubble Tea Bar",
+    "category": "DRINK",
+    "cost": 3500,
+    "monthlyMaintenance": 130,
+    "revenuePerCustomer": 12,
+    "restockCost": 300,
+    "maxStock": 85
+  },
+  {
+    "id": "noodle-house",
+    "name": "Noodle House",
+    "category": "FOOD",
+    "cost": 7000,
+    "monthlyMaintenance": 280,
+    "revenuePerCustomer": 18,
+    "restockCost": 700,
+    "maxStock": 120
+  },
+  {
+    "id": "ice-cream-junk",
+    "name": "Ice Cream Junk",
+    "category": "FOOD",
+    "cost": 4500,
+    "monthlyMaintenance": 180,
+    "revenuePerCustomer": 10,
+    "restockCost": 400,
+    "maxStock": 90
+  },
+  {
+    "id": "first-aid-station",
+    "name": "First Aid Station",
+    "category": "FACILITY",
+    "cost": 8000,
+    "monthlyMaintenance": 300,
+    "revenuePerCustomer": 0,
+    "restockCost": 200,
+    "maxStock": 50
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "janitor",
+    "name": "Janitor",
+    "type": "JANITOR",
+    "salary": 500
+  },
+  {
+    "id": "mechanic",
+    "name": "Mechanic",
+    "type": "MECHANIC",
+    "salary": 700
+  },
+  {
+    "id": "security",
+    "name": "Security Guard",
+    "type": "SECURITY",
+    "salary": 600
+  },
+  {
+    "id": "entertainer",
+    "name": "Entertainer",
+    "type": "ENTERTAINER",
+    "salary": 400
+  }
+]

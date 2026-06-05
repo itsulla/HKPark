@@ -1,0 +1,62 @@
+[
+  {
+    "id": "mong-kok",
+    "name": "Mong Kok Market",
+    "description": "A bustling street market area. Cheap land, high foot traffic.",
+    "unlockCost": 0,
+    "tiles": { "x": 0, "y": 0, "w": 20, "h": 20 },
+    "unlocked": true,
+    "terrain": "flat",
+    "guestMultiplier": 1.0
+  },
+  {
+    "id": "tsim-sha-tsui",
+    "name": "Tsim Sha Tsui Waterfront",
+    "description": "Premium tourist district along Victoria Harbour.",
+    "unlockCost": 80000,
+    "tiles": { "x": 20, "y": 0, "w": 20, "h": 20 },
+    "unlocked": false,
+    "terrain": "coastal",
+    "guestMultiplier": 1.3
+  },
+  {
+    "id": "lantau",
+    "name": "Lantau Highlands",
+    "description": "Remote and spacious. Cheap to unlock but needs transport links.",
+    "unlockCost": 40000,
+    "tiles": { "x": 0, "y": 20, "w": 25, "h": 25 },
+    "unlocked": false,
+    "terrain": "hilly",
+    "guestMultiplier": 0.7
+  },
+  {
+    "id": "central",
+    "name": "Central Business District",
+    "description": "The most expensive land in Hong Kong. Corporate events boost revenue.",
+    "unlockCost": 120000,
+    "tiles": { "x": 20, "y": 20, "w": 15, "h": 15 },
+    "unlocked": false,
+    "terrain": "flat",
+    "guestMultiplier": 1.5
+  },
+  {
+    "id": "aberdeen",
+    "name": "Aberdeen Fishing Village",
+    "description": "Traditional fishing village. Water rides get a bonus here.",
+    "unlockCost": 60000,
+    "tiles": { "x": 40, "y": 0, "w": 20, "h": 15 },
+    "unlocked": false,
+    "terrain": "coastal",
+    "guestMultiplier": 1.0
+  },
+  {
+    "id": "kowloon-peak",
+    "name": "Kowloon Peak",
+    "description": "Elevation changes create natural thrill ride opportunities.",
+    "unlockCost": 100000,
+    "tiles": { "x": 35, "y": 20, "w": 20, "h": 20 },
+    "unlocked": false,
+    "terrain": "hilly",
+    "guestMultiplier": 1.2
+  }
+]

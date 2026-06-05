@@ -1,0 +1,38 @@
+[
+  {
+    "id": "lantern",
+    "name": "Lantern",
+    "cost": 200,
+    "sceneryValue": 1
+  },
+  {
+    "id": "bamboo-garden",
+    "name": "Bamboo Garden",
+    "cost": 500,
+    "sceneryValue": 3
+  },
+  {
+    "id": "fountain",
+    "name": "Fountain",
+    "cost": 800,
+    "sceneryValue": 4
+  },
+  {
+    "id": "neon-sign",
+    "name": "Neon Sign",
+    "cost": 400,
+    "sceneryValue": 2
+  },
+  {
+    "id": "bonsai-tree",
+    "name": "Bonsai Tree",
+    "cost": 300,
+    "sceneryValue": 2
+  },
+  {
+    "id": "stone-lion",
+    "name": "Stone Lion",
+    "cost": 600,
+    "sceneryValue": 3
+  }
+]
