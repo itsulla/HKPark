@@ -20,7 +20,7 @@ export default function VIPFeed() {
       {recent.map((line, i) => (
         <div
           key={line.id}
-          className="pointer-events-auto rounded-lg border border-[#2a2a4a] bg-[#1a1a2e]/95 backdrop-blur-md px-3 py-2 shadow-[0_4px_16px_rgba(0,0,0,0.35)] transition-opacity"
+          className="rounded-lg border border-[#2a2a4a] bg-[#1a1a2e]/95 backdrop-blur-md px-3 py-2 shadow-[0_4px_16px_rgba(0,0,0,0.35)] transition-opacity"
           style={{ opacity: 1 - i * 0.25 }}
         >
           <div className="flex items-center gap-2 mb-1">

@@ -404,7 +404,7 @@ function GamePageInner() {
             });
 
             useGameStore.getState().addVipDialogue({
-              id: `${tick}-${persona.id}`,
+              id: `${tick}-${persona.id}-${Math.floor(Math.random() * 1e6)}`,
               personaId: persona.id,
               vipName: persona.name,
               avatarEmoji: persona.avatarEmoji,
@@ -413,7 +413,7 @@ function GamePageInner() {
               timestamp: store.date,
             });
 
-            if (comment.sponsored && comment.surfaceId) {
+            if (comment.sponsored && comment.surfaceId && comment.sponsorId) {
               SponsorManager.trackImpression({
                 surfaceType: 'vip',
                 surfaceId: comment.surfaceId,

@@ -528,6 +528,7 @@ export const useGameStore = create<GameStore>()(
         state.placementRotation = 0;
         state.placementDefinitionId = null;
         state.notifications = [];
+        state.vipDialogue = [];
       });
     },
 

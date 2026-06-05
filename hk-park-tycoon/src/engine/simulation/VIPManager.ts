@@ -66,8 +66,9 @@ export class VIPManager {
     // sponsored surface mentions the product (subject to mentionFrequency).
     const affinity = persona.brandAffinity;
     if (affinity) {
+      const wanted = affinity.brand.trim().toLowerCase();
       const match = ctx.sponsoredSurfaces.find(
-        (s) => s.brandName === affinity.brand,
+        (s) => s.brandName.trim().toLowerCase() === wanted,
       );
       if (match && Math.random() < affinity.mentionFrequency) {
         const product = affinity.product;
@@ -91,11 +92,13 @@ export class VIPManager {
       text = 'Hmm, not much to ride here yet...';
     } else if (ctx.litterHigh && persona.loves.includes('GENTLE')) {
       text = 'Aiya, someone needs to clean up around here!';
-    } else {
+    } else if (persona.catchphrases.length > 0) {
       text =
         persona.catchphrases[
           Math.floor(Math.random() * persona.catchphrases.length)
         ];
+    } else {
+      text = 'What a day at the park!';
     }
 
     return { text, sponsored: false, surfaceId: null, sponsorId: null };
