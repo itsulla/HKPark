@@ -398,28 +398,31 @@ export default function InfoPanel() {
   const shops = useGameStore((s) => s.shops);
   const guests = useGameStore((s) => s.guests);
 
-  // Fire a 'click' impression whenever a ride/shop surface is selected. This is
-  // the player engaging with a sponsorable surface — exactly the signal a brand
-  // pays for. Runs before the early return to keep hook order stable.
+  // Resolve the selected sponsorable surface to a stable key so the impression
+  // effect fires exactly once per distinct selection (not on every sim re-render
+  // that re-creates the rides/shops objects).
+  const selectedRide = selectedEntityId ? rides[selectedEntityId] : undefined;
+  const selectedShop = selectedEntityId ? shops[selectedEntityId] : undefined;
+  const trackedSurface = selectedRide
+    ? `ride:${selectedRide.definitionId}`
+    : selectedShop
+      ? `shop:${selectedShop.definitionId}`
+      : null;
+
+  // Fire a 'click' impression when a ride/shop surface is selected — the player
+  // engaging with a sponsorable surface is exactly the signal a brand pays for.
+  // Runs before the early return to keep hook order stable.
   useEffect(() => {
-    if (!selectedEntityId) return;
-    const selectedRide = rides[selectedEntityId];
-    const selectedShop = shops[selectedEntityId];
-    const surface = selectedRide
-      ? ({ type: 'ride' as const, definitionId: selectedRide.definitionId })
-      : selectedShop
-        ? ({ type: 'shop' as const, definitionId: selectedShop.definitionId })
-        : null;
-    if (!surface) return;
-    const sponsor = SponsorManager.getSponsor(surface.definitionId);
+    if (!trackedSurface) return;
+    const [type, definitionId] = trackedSurface.split(':');
+    const sponsor = SponsorManager.getSponsor(definitionId);
     SponsorManager.trackImpression({
-      surfaceType: surface.type,
-      surfaceId: surface.definitionId,
+      surfaceType: type as 'ride' | 'shop',
+      surfaceId: definitionId,
       sponsorId: sponsor?.sponsorId ?? null,
       eventType: 'click',
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEntityId]);
+  }, [trackedSurface]);
 
   if (!selectedEntityId) return null;
 

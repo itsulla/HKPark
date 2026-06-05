@@ -36,11 +36,20 @@ class SponsorManagerClass {
   async loadSponsors(): Promise<void> {
     try {
       const res = await fetch('/api/sponsors');
-      if (!res.ok) return;
+      if (!res.ok) {
+        this.loaded = true;
+        return;
+      }
       const sponsors: SponsorConfig[] = await res.json();
-      // Key by the SURFACE the sponsor brands (a ride/shop definition id), so
-      // getDisplayConfig(definitionId) can find it.
-      sponsors.forEach((s) => this.configs.set(s.surfaceId, s));
+      // Build a fresh map and atomically replace, so a reload drops sponsors
+      // that are no longer active. Key by the SURFACE the sponsor brands (a
+      // ride/shop definition id) so getDisplayConfig(definitionId) finds it.
+      const next = new Map<string, SponsorConfig>();
+      for (const s of sponsors) {
+        // Deterministic on duplicates: first campaign for a surface wins.
+        if (!next.has(s.surfaceId)) next.set(s.surfaceId, s);
+      }
+      this.configs = next;
       this.loaded = true;
     } catch {
       // Sponsors are optional — game works perfectly without them

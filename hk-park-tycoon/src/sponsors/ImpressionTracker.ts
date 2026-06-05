@@ -85,6 +85,8 @@ export class ImpressionTracker {
   }
 
   private startAutoFlush(): void {
+    // Only run the flush timer in the browser; never in a server/SSR process.
+    if (typeof window === 'undefined') return;
     this.flushTimer = setInterval(() => {
       this.flush();
     }, FLUSH_INTERVAL_MS);
@@ -96,10 +98,10 @@ export class ImpressionTracker {
     this.unloadHandler = () => {
       // Use sendBeacon for reliable delivery on page unload
       if (this.buffer.length > 0 && navigator.sendBeacon) {
-        const payload = JSON.stringify({
-          events: this.buffer,
-          sessionId: this.sessionId,
-        });
+        const payload = new Blob(
+          [JSON.stringify({ events: this.buffer, sessionId: this.sessionId })],
+          { type: 'application/json' },
+        );
         navigator.sendBeacon('/api/impressions', payload);
         this.buffer = [];
       }
