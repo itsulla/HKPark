@@ -19,8 +19,16 @@ import { GameLoop } from '../../engine/core/GameLoop';
 import { EventBus } from '../../engine/core/EventBus';
 import { ParkRating } from '../../engine/simulation/ParkRating';
 import { WeatherManager } from '../../engine/simulation/WeatherManager';
+import { GuestManager } from '../../engine/simulation/GuestManager';
+import { RideManager } from '../../engine/simulation/RideManager';
+import { StaffManager } from '../../engine/simulation/StaffManager';
+import { EconomyManager } from '../../engine/simulation/EconomyManager';
+import { Grid } from '../../engine/world/Grid';
 import { loadAutoSave, loadGame, autoSave } from '../../state/saveManager';
-import { GameSpeed, ToolType } from '../../engine/types';
+import { GameSpeed, ToolType, TileType } from '../../engine/types';
+import type { RideDefinition, ShopDefinition, GameDate } from '../../engine/types';
+import ridesData from '../../data/rides.json';
+import shopsData from '../../data/shops.json';
 import TopBar from '../../ui/TopBar';
 import Toolbar from '../../ui/Toolbar';
 import InfoPanel from '../../ui/InfoPanel';
@@ -51,6 +59,21 @@ const GameCanvas = dynamic(
 const PARK_RATING_INTERVAL = 30; // recalculate every 30 ticks
 const AUTO_SAVE_INTERVAL_MS = 60_000; // auto-save every 60 seconds of real time
 
+// Definition lookup maps (keyed by definition id), built once at module load.
+const RIDE_DEFS: Record<string, RideDefinition> = {};
+(ridesData as RideDefinition[]).forEach((d) => {
+  RIDE_DEFS[d.id] = d;
+});
+const SHOP_DEFS: Record<string, ShopDefinition> = {};
+(shopsData as ShopDefinition[]).forEach((d) => {
+  SHOP_DEFS[d.id] = d;
+});
+
+const sumRideRevenue = (rides: Record<string, { totalRevenue: number }>): number =>
+  Object.values(rides).reduce((acc, r) => acc + r.totalRevenue, 0);
+const sumShopRevenue = (shops: Record<string, { revenue: number }>): number =>
+  Object.values(shops).reduce((acc, s) => acc + s.revenue, 0);
+
 // ---------------------------------------------------------------------------
 // Game Page (inner component that reads search params)
 // ---------------------------------------------------------------------------
@@ -70,6 +93,10 @@ function GamePageInner() {
   const eventBusRef = useRef<EventBus>(EventBus.getInstance());
   const parkRatingRef = useRef<ParkRating | null>(null);
   const weatherManagerRef = useRef<WeatherManager | null>(null);
+  const guestManagerRef = useRef<GuestManager | null>(null);
+  const rideManagerRef = useRef<RideManager | null>(null);
+  const staffManagerRef = useRef<StaffManager | null>(null);
+  const economyManagerRef = useRef<EconomyManager | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Store actions (stable references for initialization)
@@ -129,63 +156,193 @@ function GamePageInner() {
     // Create simulation managers
     const parkRating = new ParkRating(eventBus);
     const weatherManager = new WeatherManager(eventBus);
+    const guestManager = new GuestManager(eventBus);
+    const rideManager = new RideManager(eventBus);
+    const staffManager = new StaffManager();
+    const economyManager = new EconomyManager(eventBus);
     parkRatingRef.current = parkRating;
     weatherManagerRef.current = weatherManager;
+    guestManagerRef.current = guestManager;
+    rideManagerRef.current = rideManager;
+    staffManagerRef.current = staffManager;
+    economyManagerRef.current = economyManager;
 
     // Create and start game loop
     const gameLoop = new GameLoop(eventBus);
     gameLoopRef.current = gameLoop;
 
-    // Subscribe to tick events for simulation orchestration
+    // ---- Per-tick simulation orchestration ----
+    // Reads a fresh store snapshot, runs all managers on UNFROZEN clones, then
+    // commits guests/rides/shops/staff + revenue back in a single store update.
     const onTick = ({ tick }: { tick: number }) => {
       const store = useGameStore.getState();
-
-      // Advance the store's tick counter
       store.advanceTick();
 
-      // Recalculate park rating periodically
-      if (tick % PARK_RATING_INTERVAL === 0) {
-        const rating = parkRating.calculate(
-          store.guests,
-          store.rides,
-          store.districts,
-          0, // litter count (TODO: track litter)
+      // Bridge the store's grid (read-only) into the Grid API the managers use.
+      const grid = Grid.fromTiles(store.grid);
+
+      const guests = structuredClone(store.guests);
+      const rides = structuredClone(store.rides);
+      const shops = structuredClone(store.shops);
+      const staff = structuredClone(store.staff);
+
+      const rideRevenueBefore = sumRideRevenue(rides);
+      const shopRevenueBefore = sumShopRevenue(shops);
+
+      // --- Guest spawning (driven by park rating, district, and weather) ---
+      let newGuestCount = 0;
+      const weatherEffects = weatherManager.getWeatherEffects(store.weather);
+      const entrance = grid.findTilesOfType(TileType.ENTRANCE)[0];
+
+      if (
+        entrance &&
+        weatherEffects.parkOpen &&
+        weatherEffects.spawnRateMultiplier > 0
+      ) {
+        const unlockedMultipliers = store.districts
+          .filter((d) => d.unlocked)
+          .map((d) => d.guestMultiplier ?? 1);
+        const districtMultiplier = unlockedMultipliers.length
+          ? Math.max(...unlockedMultipliers)
+          : 1;
+
+        const baseInterval = parkRating.getSpawnRate(
+          store.parkRating,
+          districtMultiplier,
         );
-        store.setParkRating(rating);
-      }
-    };
+        const interval = Math.max(
+          1,
+          Math.round(baseInterval / weatherEffects.spawnRateMultiplier),
+        );
 
-    const onDay = ({ date }: { date: { day: number; month: number; year: number } }) => {
-      const store = useGameStore.getState();
-
-      // Process weather on each new day
-      if (weatherManagerRef.current) {
-        const result = weatherManagerRef.current.processDay(date);
-        store.updateWeather(result.weather);
-        store.updateSeason(result.season);
-      }
-    };
-
-    const onMonth = ({ date }: { date: { day: number; month: number; year: number } }) => {
-      const store = useGameStore.getState();
-
-      // Age rides monthly
-      for (const rideId of Object.keys(store.rides)) {
-        const ride = store.rides[rideId];
-        if (ride) {
-          store.updateRide(rideId, { monthsOld: ride.monthsOld + 1 });
+        if (guestManager.shouldSpawn(tick, interval)) {
+          const guest = guestManager.spawnGuest(entrance);
+          guests[guest.id] = guest;
+          newGuestCount++;
         }
       }
 
-      store.addNotification(
-        `Month ${date.month} of Year ${date.year} has ended.`,
-        'info',
+      // --- Guests: needs, pathfinding, queueing, riding, shopping ---
+      const { updated } = guestManager.processAllGuests(
+        guests,
+        grid,
+        rides,
+        shops,
+        RIDE_DEFS,
+        SHOP_DEFS,
+        tick,
       );
+
+      // --- Rides: advance queue/boarding/ride-cycle for open rides ---
+      for (const rideId of Object.keys(rides)) {
+        const ride = rides[rideId];
+        const def = RIDE_DEFS[ride.definitionId];
+        if (def && ride.status === 'open') {
+          rides[rideId] = rideManager.processRideTick(ride, def);
+        }
+      }
+
+      // --- Staff: mechanics seek breakdowns, others patrol ---
+      const brokenRides = Object.keys(rides).filter(
+        (id) => rides[id].status === 'broken',
+      );
+      for (const staffId of Object.keys(staff)) {
+        staff[staffId] = staffManager.processStaffTick(
+          staff[staffId],
+          grid,
+          brokenRides,
+        );
+      }
+
+      // --- Revenue: diff the running ride/shop totals accrued this tick ---
+      const rideIncome = sumRideRevenue(rides) - rideRevenueBefore;
+      const shopIncome = sumShopRevenue(shops) - shopRevenueBefore;
+      const revenue = rideIncome + shopIncome;
+      if (rideIncome > 0) {
+        economyManager.recordTransaction(rideIncome, 'ride-revenue', 'Ride tickets');
+      }
+      if (shopIncome > 0) {
+        economyManager.recordTransaction(shopIncome, 'shop-revenue', 'Shop sales');
+      }
+
+      // --- Commit the whole tick in one store update ---
+      store.applySimulationResult({
+        guests: updated,
+        rides,
+        shops,
+        staff,
+        revenue,
+        newGuestCount,
+      });
+
+      // --- Periodic park-rating recalculation ---
+      if (tick % PARK_RATING_INTERVAL === 0) {
+        const rating = parkRating.calculate(updated, rides, store.districts, 0);
+        useGameStore.getState().setParkRating(rating);
+      }
+    };
+
+    const onDay = ({ date }: { date: GameDate }) => {
+      const store = useGameStore.getState();
+
+      // Keep the store clock in sync so the UI date advances.
+      store.setDate(date);
+
+      // Process weather on each new day.
+      const result = weatherManager.processDay(date);
+      store.updateWeather(result.weather);
+      store.updateSeason(result.season);
+    };
+
+    const onMonth = ({ date }: { date: GameDate }) => {
+      const store = useGameStore.getState();
+
+      // Age all rides by one month (excitement decay, etc.).
+      const agedRides = rideManager.ageRides(structuredClone(store.rides));
+      for (const rideId of Object.keys(agedRides)) {
+        store.updateRide(rideId, agedRides[rideId]);
+      }
+
+      // Settle monthly finances. Per-tick revenue is already banked, so apply
+      // only the month's EXPENSES here; keep the report for the Finance panel.
+      const report = economyManager.processMonth(
+        store.rides,
+        store.staff,
+        store.loanAmount,
+        store.loanInterestRate,
+        store.money,
+        date,
+      );
+      store.addMonthlyReport(report);
+      if (report.totalExpenses > 0) {
+        store.addMoney(-report.totalExpenses, 'expenses', 'Monthly expenses');
+      }
+
+      store.addNotification(
+        `Month ${date.month}, Year ${date.year}: ${
+          report.netProfit >= 0 ? 'profit' : 'loss'
+        } of $${Math.abs(Math.round(report.netProfit)).toLocaleString()}.`,
+        report.netProfit >= 0 ? 'success' : 'warning',
+      );
+    };
+
+    // Bridge engine notifications (e.g. ride breakdowns) into UI toasts.
+    const onNotification = ({
+      message,
+      type,
+      entityId,
+    }: {
+      message: string;
+      type: 'info' | 'warning' | 'error' | 'success';
+      entityId?: string;
+    }) => {
+      useGameStore.getState().addNotification(message, type, entityId);
     };
 
     eventBus.on('tick', onTick);
     eventBus.on('day', onDay);
     eventBus.on('month', onMonth);
+    eventBus.on('notification', onNotification);
 
     // Sync game loop speed with store speed
     let prevSpeed = useGameStore.getState().speed;
@@ -219,6 +376,7 @@ function GamePageInner() {
       eventBus.off('tick', onTick);
       eventBus.off('day', onDay);
       eventBus.off('month', onMonth);
+      eventBus.off('notification', onNotification);
 
       unsubSpeed();
 
@@ -229,6 +387,10 @@ function GamePageInner() {
 
       parkRatingRef.current = null;
       weatherManagerRef.current = null;
+      guestManagerRef.current = null;
+      rideManagerRef.current = null;
+      staffManagerRef.current = null;
+      economyManagerRef.current = null;
     };
   }, [initialized]);
 

@@ -173,8 +173,9 @@ export class EconomyManager {
     // Clear transactions for the new month
     this.transactions = [];
 
-    // Emit month event
-    this.eventBus.emit('month', { date });
+    // NOTE: time events (day/month/year) are owned by GameLoop. EconomyManager
+    // must NOT emit 'month' here, or it would re-enter the game loop's month
+    // handler (which calls processMonth) and recurse infinitely.
 
     return report;
   }

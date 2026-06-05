@@ -614,6 +614,10 @@ export class GuestManager {
       guest.energy -= ride.intensity * 3;
       guest.cash -= ride.ticketPrice;
 
+      // Credit the ride so park revenue can be derived by the game loop.
+      ride.totalRevenue += ride.ticketPrice;
+      ride.totalCustomers += 1;
+
       // Track ride
       guest.ridesRidden.push(ride.id);
 

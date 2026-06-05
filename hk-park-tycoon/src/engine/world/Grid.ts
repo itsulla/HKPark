@@ -31,6 +31,20 @@ export class Grid {
     }
   }
 
+  /**
+   * Wrap an existing Tile[][] (e.g. the Zustand store's grid) in the Grid API
+   * without copying. The caller must treat the resulting Grid as read-only when
+   * the backing tiles are immutable (Immer-frozen) — guest/staff processing only
+   * reads the grid, so this is safe for per-tick simulation.
+   */
+  static fromTiles(tiles: Tile[][]): Grid {
+    const height = tiles.length;
+    const width = tiles[0]?.length ?? 0;
+    const grid = new Grid(width, height);
+    grid.tiles = tiles;
+    return grid;
+  }
+
   get width(): number {
     return this._width;
   }

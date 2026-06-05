@@ -148,8 +148,12 @@ export interface GameStoreActions {
   updateWeather: (weather: Weather) => void;
   updateSeason: (season: Season) => void;
 
-  // Tick
+  // Time / Tick
   advanceTick: () => void;
+  setDate: (date: GameDate) => void;
+
+  // Simulation commit (bulk entity + money update from one game-loop tick)
+  applySimulationResult: (result: SimulationResult) => void;
 
   // Entity updates
   updateGuest: (guestId: string, updates: Partial<Guest>) => void;
@@ -163,6 +167,21 @@ export interface GameStoreActions {
 }
 
 export type GameStore = GameStoreState & GameStoreActions;
+
+/**
+ * Result of one simulation tick, computed by the game loop on cloned entities
+ * and committed back to the store in a single update.
+ */
+export interface SimulationResult {
+  guests: Record<string, Guest>;
+  rides: Record<string, Ride>;
+  shops: Record<string, Shop>;
+  staff: Record<string, Staff>;
+  /** Net revenue (ride tickets + shop sales) earned this tick. */
+  revenue: number;
+  /** Number of guests spawned this tick (for lifetime stats). */
+  newGuestCount: number;
+}
 
 // -----------------------------------------------------------------------------
 // Grid Helpers (operate on raw Tile[][] without needing the Grid class)
@@ -240,6 +259,40 @@ function isAdjacentToPath(
     }
   }
   return false;
+}
+
+/**
+ * Find a PATH/ENTRANCE tile adjacent to a footprint — where guests stand to
+ * queue. Returns null if none is adjacent (should not happen after the
+ * isAdjacentToPath placement check).
+ */
+function findAdjacentPathTile(
+  grid: Tile[][],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): Position | null {
+  const directions: Position[] = [
+    { x: 0, y: -1 },
+    { x: 0, y: 1 },
+    { x: -1, y: 0 },
+    { x: 1, y: 0 },
+  ];
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      for (const dir of directions) {
+        const tile = getTile(grid, x + dx + dir.x, y + dy + dir.y);
+        if (
+          tile &&
+          (tile.type === TileType.PATH || tile.type === TileType.ENTRANCE)
+        ) {
+          return { x: tile.x, y: tile.y };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function markDistrictTiles(grid: Tile[][], district: District): void {
@@ -566,9 +619,13 @@ export const useGameStore = create<GameStore>()(
         );
         if (!placed) return;
 
-        // Entrance tile: front-center of the ride (bottom edge based on rotation)
-        const entranceTile: Position = { x: x + Math.floor(w / 2), y: y + h };
-        // Exit tile: same as entrance for simplicity
+        // Entrance/exit: the adjacent PATH tile guests walk to and queue on.
+        // Falls back to the bottom-center edge if (somehow) no path is adjacent.
+        const pathTile = findAdjacentPathTile(state.grid, x, y, w, h);
+        const entranceTile: Position = pathTile ?? {
+          x: x + Math.floor(w / 2),
+          y: y + h,
+        };
         const exitTile: Position = { x: entranceTile.x, y: entranceTile.y };
 
         // Create ride entity
@@ -915,6 +972,33 @@ export const useGameStore = create<GameStore>()(
     advanceTick: () => {
       set((state) => {
         state.currentTick += 1;
+      });
+    },
+
+    setDate: (date: GameDate) => {
+      set((state) => {
+        state.date = date;
+      });
+    },
+
+    applySimulationResult: (result: SimulationResult) => {
+      set((state) => {
+        state.guests = result.guests;
+        state.rides = result.rides;
+        state.shops = result.shops;
+        state.staff = result.staff;
+
+        if (result.revenue !== 0) {
+          state.money += result.revenue;
+        }
+        if (result.newGuestCount > 0) {
+          state.totalGuestsAllTime += result.newGuestCount;
+        }
+
+        const count = Object.keys(result.guests).length;
+        if (count > state.maxGuestsAtOnce) {
+          state.maxGuestsAtOnce = count;
+        }
       });
     },
 
