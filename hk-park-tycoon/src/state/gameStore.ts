@@ -78,6 +78,8 @@ export interface GameStoreState {
   parkName: string;
   totalGuestsAllTime: number;
   maxGuestsAtOnce: number;
+  /** Accumulated litter; higher = dirtier park, lowers the cleanliness rating. */
+  litter: number;
 
   // Environment
   weather: Weather;
@@ -125,6 +127,8 @@ export interface GameStoreActions {
   openRide: (rideId: string) => void;
   closeRide: (rideId: string) => void;
   setTicketPrice: (rideId: string, price: number) => void;
+  breakRide: (rideId: string) => void;
+  repairRide: (rideId: string) => void;
 
   // Staff
   hireStaff: (type: StaffType, position: Position) => void;
@@ -181,6 +185,8 @@ export interface SimulationResult {
   revenue: number;
   /** Number of guests spawned this tick (for lifetime stats). */
   newGuestCount: number;
+  /** New accumulated litter value after this tick's generation + cleaning. */
+  litter: number;
 }
 
 // -----------------------------------------------------------------------------
@@ -406,6 +412,7 @@ function createInitialState(): GameStoreState {
     districts: (districtsData as District[]).map((d) => ({ ...d })),
     parkRating: 0,
     parkName: 'My HK Park',
+    litter: 0,
     selectedTool: ToolType.SELECT,
     loanAmount: 0,
     loanInterestRate: 0.1,
@@ -490,6 +497,7 @@ export const useGameStore = create<GameStore>()(
           'parkName',
           'totalGuestsAllTime',
           'maxGuestsAtOnce',
+          'litter',
           'weather',
           'season',
         ];
@@ -597,7 +605,9 @@ export const useGameStore = create<GameStore>()(
         // Check adjacent to path
         if (!isAdjacentToPath(state.grid, x, y, w, h)) return;
 
-        const rideId = uuidv4();
+        // Prefix the id so grid-based entity searches (e.g. mechanics looking
+        // for broken rides via Pathfinder.findNearestEntity('ride-')) match.
+        const rideId = `ride-${uuidv4()}`;
 
         // Collect tile positions for the ride footprint
         const tiles: Position[] = [];
@@ -841,6 +851,28 @@ export const useGameStore = create<GameStore>()(
       });
     },
 
+    breakRide: (rideId: string) => {
+      set((state) => {
+        const ride = state.rides[rideId];
+        if (ride && ride.status === 'open') {
+          ride.status = 'broken';
+          ride.currentQueue = [];
+          ride.ridersOnBoard = [];
+          ride.rideTimer = 0;
+          ride.lastBreakdown = { ...state.date };
+        }
+      });
+    },
+
+    repairRide: (rideId: string) => {
+      set((state) => {
+        const ride = state.rides[rideId];
+        if (ride && ride.status === 'broken') {
+          ride.status = 'open';
+        }
+      });
+    },
+
     // -------------------------------------------------------------------------
     // Staff
     // -------------------------------------------------------------------------
@@ -1021,6 +1053,7 @@ export const useGameStore = create<GameStore>()(
         if (result.newGuestCount > 0) {
           state.totalGuestsAllTime += result.newGuestCount;
         }
+        state.litter = result.litter;
 
         const count = Object.keys(result.guests).length;
         if (count > state.maxGuestsAtOnce) {

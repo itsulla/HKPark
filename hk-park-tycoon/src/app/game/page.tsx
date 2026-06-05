@@ -25,7 +25,7 @@ import { StaffManager } from '../../engine/simulation/StaffManager';
 import { EconomyManager } from '../../engine/simulation/EconomyManager';
 import { Grid } from '../../engine/world/Grid';
 import { loadAutoSave, loadGame, autoSave } from '../../state/saveManager';
-import { GameSpeed, ToolType, TileType } from '../../engine/types';
+import { GameSpeed, ToolType, TileType, StaffType } from '../../engine/types';
 import type { RideDefinition, ShopDefinition, GameDate } from '../../engine/types';
 import ridesData from '../../data/rides.json';
 import shopsData from '../../data/shops.json';
@@ -58,6 +58,10 @@ const GameCanvas = dynamic(
 
 const PARK_RATING_INTERVAL = 30; // recalculate every 30 ticks
 const AUTO_SAVE_INTERVAL_MS = 60_000; // auto-save every 60 seconds of real time
+
+// Litter model: guests drop litter; janitors clean it. Aggregate (not per-tile).
+const LITTER_PER_GUEST_TICK = 0.02;
+const JANITOR_CLEAN_PER_TICK = 1.5;
 
 // Definition lookup maps (keyed by definition id), built once at module load.
 const RIDE_DEFS: Record<string, RideDefinition> = {};
@@ -252,6 +256,39 @@ function GamePageInner() {
         );
       }
 
+      // --- Mechanic repair: a mechanic adjacent to a broken ride fixes it ---
+      const repairedRideIds = new Set<string>();
+      for (const staffId of Object.keys(staff)) {
+        const member = staff[staffId];
+        if (member.type !== StaffType.MECHANIC) continue;
+        const sx = Math.round(member.tile.x);
+        const sy = Math.round(member.tile.y);
+        for (const rideId of brokenRides) {
+          if (repairedRideIds.has(rideId)) continue;
+          const ride = rides[rideId];
+          if (!ride) continue;
+          const adjacent = ride.tiles.some(
+            (t) => Math.abs(t.x - sx) + Math.abs(t.y - sy) <= 1,
+          );
+          if (adjacent) {
+            repairedRideIds.add(rideId);
+            break;
+          }
+        }
+      }
+
+      // --- Litter: guests generate it, janitors clean it (aggregate model) ---
+      const guestCount = Object.keys(updated).length;
+      const janitorCount = Object.values(staff).filter(
+        (s) => s.type === StaffType.JANITOR,
+      ).length;
+      const newLitter = Math.max(
+        0,
+        store.litter +
+          guestCount * LITTER_PER_GUEST_TICK -
+          janitorCount * JANITOR_CLEAN_PER_TICK,
+      );
+
       // --- Revenue: diff the running ride/shop totals accrued this tick ---
       const rideIncome = sumRideRevenue(rides) - rideRevenueBefore;
       const shopIncome = sumShopRevenue(shops) - shopRevenueBefore;
@@ -271,11 +308,27 @@ function GamePageInner() {
         staff,
         revenue,
         newGuestCount,
+        litter: newLitter,
       });
 
-      // --- Periodic park-rating recalculation ---
+      // --- Apply mechanic repairs (status is player/sim-shared, set explicitly) ---
+      for (const rideId of Array.from(repairedRideIds)) {
+        store.repairRide(rideId);
+        const ride = rides[rideId];
+        store.addNotification(
+          `${ride ? ride.name : 'A ride'} was repaired by a mechanic.`,
+          'success',
+        );
+      }
+
+      // --- Periodic park-rating recalculation (now with real litter) ---
       if (tick % PARK_RATING_INTERVAL === 0) {
-        const rating = parkRating.calculate(updated, rides, store.districts, 0);
+        const rating = parkRating.calculate(
+          updated,
+          rides,
+          store.districts,
+          newLitter,
+        );
         useGameStore.getState().setParkRating(rating);
       }
     };
@@ -290,6 +343,15 @@ function GamePageInner() {
       const result = weatherManager.processDay(date);
       store.updateWeather(result.weather);
       store.updateSeason(result.season);
+
+      // Daily ride-breakdown rolls. checkBreakdown emits 'ride-broke' (bridged
+      // to a toast below); breakRide persists the broken status to the store.
+      const ridesClone = structuredClone(store.rides);
+      for (const rideId of Object.keys(ridesClone)) {
+        if (rideManager.checkBreakdown(ridesClone[rideId], date.day)) {
+          store.breakRide(rideId);
+        }
+      }
     };
 
     const onMonth = ({ date }: { date: GameDate }) => {
@@ -328,7 +390,7 @@ function GamePageInner() {
       );
     };
 
-    // Bridge engine notifications (e.g. ride breakdowns) into UI toasts.
+    // Bridge engine notifications into UI toasts.
     const onNotification = ({
       message,
       type,
@@ -341,10 +403,18 @@ function GamePageInner() {
       useGameStore.getState().addNotification(message, type, entityId);
     };
 
+    // Bridge ride breakdowns into a toast.
+    const onRideBroke = ({ rideName }: { rideId: string; rideName: string }) => {
+      useGameStore
+        .getState()
+        .addNotification(`${rideName} broke down! Send a mechanic.`, 'error');
+    };
+
     eventBus.on('tick', onTick);
     eventBus.on('day', onDay);
     eventBus.on('month', onMonth);
     eventBus.on('notification', onNotification);
+    eventBus.on('ride-broke', onRideBroke);
 
     // Sync game loop speed with store speed
     let prevSpeed = useGameStore.getState().speed;
@@ -379,6 +449,7 @@ function GamePageInner() {
       eventBus.off('day', onDay);
       eventBus.off('month', onMonth);
       eventBus.off('notification', onNotification);
+      eventBus.off('ride-broke', onRideBroke);
 
       unsubSpeed();
 
