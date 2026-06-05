@@ -162,7 +162,14 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="h-screen w-screen animated-bg flex flex-col items-center justify-center relative select-none">
+    <div className="h-screen w-screen animated-bg flex flex-col items-center justify-center relative select-none overflow-hidden">
+      {/* Key-art background with a dark overlay for legibility */}
+      <div
+        className="absolute inset-0 bg-cover bg-center scale-105"
+        style={{ backgroundImage: 'url(/key-art.jpg)' }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a16]/75 via-[#0a0a16]/55 to-[#0a0a16]/90" />
+
       <Particles />
 
       {/* Title */}
