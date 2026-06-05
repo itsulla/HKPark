@@ -96,9 +96,14 @@ interface GuestTimers {
 // GuestManager
 // -----------------------------------------------------------------------------
 
+/** Max guests processed per tick. Processing rotates so none starve. */
+const MAX_GUESTS_PER_TICK = 200;
+
 export class GuestManager {
   private readonly eventBus: EventBus;
   private readonly timers: Map<string, GuestTimers> = new Map();
+  /** Round-robin cursor so guests beyond the per-tick cap still get served. */
+  private processCursor = 0;
 
   constructor(eventBus: EventBus) {
     this.eventBus = eventBus;
@@ -270,12 +275,18 @@ export class GuestManager {
   ): { updated: Record<string, Guest>; removed: string[] } {
     const updated: Record<string, Guest> = {};
     const removed: string[] = [];
-    let processed = 0;
+    const removedSet = new Set<string>();
 
     const guestIds = Object.keys(guests);
-    for (const guestId of guestIds) {
-      if (processed >= 100) break;
+    const n = guestIds.length;
+    const count = Math.min(MAX_GUESTS_PER_TICK, n);
 
+    // Start from the rotating cursor so every guest is eventually processed,
+    // even when the population exceeds the per-tick cap.
+    let cursor = n > 0 ? this.processCursor % n : 0;
+
+    for (let i = 0; i < count; i++) {
+      const guestId = guestIds[(cursor + i) % n];
       const guest = guests[guestId];
       const result = this.processGuest(
         guest,
@@ -294,20 +305,22 @@ export class GuestManager {
           reason: result.thoughtBubble ?? 'finished visit',
         });
         removed.push(result.id);
+        removedSet.add(result.id);
         this.timers.delete(result.id);
       } else {
         updated[guestId] = result;
       }
-
-      processed++;
     }
 
-    // Carry forward any unprocessed guests
+    // Carry forward any guests not processed this tick (and not removed).
     for (const guestId of guestIds) {
-      if (!(guestId in updated) && !removed.includes(guestId)) {
+      if (!(guestId in updated) && !removedSet.has(guestId)) {
         updated[guestId] = guests[guestId];
       }
     }
+
+    // Advance the cursor for next tick.
+    this.processCursor = n > 0 ? (cursor + count) % n : 0;
 
     return { updated, removed };
   }
@@ -612,10 +625,12 @@ export class GuestManager {
       guest.happiness += ride.excitement * 8;
       guest.nausea += ride.nausea * 6;
       guest.energy -= ride.intensity * 3;
-      guest.cash -= ride.ticketPrice;
 
-      // Credit the ride so park revenue can be derived by the game loop.
-      ride.totalRevenue += ride.ticketPrice;
+      // Charge only what the guest can actually pay, so park revenue never
+      // exceeds the cash collected.
+      const paid = Math.min(guest.cash, ride.ticketPrice);
+      guest.cash -= paid;
+      ride.totalRevenue += paid;
       ride.totalCustomers += 1;
 
       // Track ride
@@ -670,34 +685,44 @@ export class GuestManager {
       if (shop) {
         const shopDef = shopDefinitions[shop.definitionId];
         if (shopDef) {
-          switch (shopDef.category) {
-            case ShopCategory.FOOD:
-              guest.hunger -= 120;
-              guest.cash -= 15;
-              shop.revenue += 15;
-              guest.thoughtBubble = 'That hit the spot!';
-              break;
-            case ShopCategory.DRINK:
-              guest.thirst -= 100;
-              guest.cash -= 10;
-              shop.revenue += 10;
-              guest.thoughtBubble = 'Refreshing!';
-              break;
-            case ShopCategory.SOUVENIR:
-              guest.happiness += 15;
-              guest.cash -= 25;
-              shop.revenue += 25;
-              guest.thoughtBubble = 'Nice souvenir!';
-              break;
-            case ShopCategory.FACILITY:
-              guest.nausea -= 100;
-              guest.thoughtBubble = 'Feeling better.';
-              break;
-          }
+          // Price per category (FACILITY is free). Only purchase — and only
+          // credit revenue / decrement stock — when the guest can afford it.
+          const price =
+            shopDef.category === ShopCategory.FOOD
+              ? 15
+              : shopDef.category === ShopCategory.DRINK
+                ? 10
+                : shopDef.category === ShopCategory.SOUVENIR
+                  ? 25
+                  : 0;
 
-          // Decrement stock if applicable
-          if (shop.stock > 0) {
-            shop.stock--;
+          const canAfford = guest.cash >= price;
+
+          if (shopDef.category === ShopCategory.FACILITY) {
+            guest.nausea -= 100;
+            guest.thoughtBubble = 'Feeling better.';
+          } else if (canAfford) {
+            switch (shopDef.category) {
+              case ShopCategory.FOOD:
+                guest.hunger -= 120;
+                guest.thoughtBubble = 'That hit the spot!';
+                break;
+              case ShopCategory.DRINK:
+                guest.thirst -= 100;
+                guest.thoughtBubble = 'Refreshing!';
+                break;
+              case ShopCategory.SOUVENIR:
+                guest.happiness += 15;
+                guest.thoughtBubble = 'Nice souvenir!';
+                break;
+            }
+            guest.cash -= price;
+            shop.revenue += price;
+            if (shop.stock > 0) {
+              shop.stock--;
+            }
+          } else {
+            guest.thoughtBubble = "Can't afford that...";
           }
         }
       }

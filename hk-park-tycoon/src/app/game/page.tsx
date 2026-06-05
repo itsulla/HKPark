@@ -233,14 +233,12 @@ function GamePageInner() {
         tick,
       );
 
-      // --- Rides: advance queue/boarding/ride-cycle for open rides ---
-      for (const rideId of Object.keys(rides)) {
-        const ride = rides[rideId];
-        const def = RIDE_DEFS[ride.definitionId];
-        if (def && ride.status === 'open') {
-          rides[rideId] = rideManager.processRideTick(ride, def);
-        }
-      }
+      // NOTE: ride queueing/boarding/cycle/completion is owned end-to-end by
+      // GuestManager (processQueuing boards riders and starts the ride timer;
+      // processRiding completes the ride and charges the guest). We deliberately
+      // do NOT also call RideManager.processRideTick here — running both created
+      // a second, conflicting boarding system. RideManager is still used for
+      // monthly aging, breakdowns, and rating math.
 
       // --- Staff: mechanics seek breakdowns, others patrol ---
       const brokenRides = Object.keys(rides).filter(
@@ -313,6 +311,10 @@ function GamePageInner() {
         store.money,
         date,
       );
+      // Revenue is already banked per tick, so the true end-of-month cash is
+      // current money minus this month's expenses. (processMonth's own
+      // cashBalance = money + netProfit would double-count the banked revenue.)
+      report.cashBalance = store.money - report.totalExpenses;
       store.addMonthlyReport(report);
       if (report.totalExpenses > 0) {
         store.addMoney(-report.totalExpenses, 'expenses', 'Monthly expenses');

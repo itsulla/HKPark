@@ -983,10 +983,37 @@ export const useGameStore = create<GameStore>()(
 
     applySimulationResult: (result: SimulationResult) => {
       set((state) => {
+        // Guests are entirely simulation-owned — replace wholesale.
         state.guests = result.guests;
-        state.rides = result.rides;
-        state.shops = result.shops;
-        state.staff = result.staff;
+
+        // Rides/shops/staff are ALSO player-owned (open/close, ticket price,
+        // hiring, demolition). Merge only the simulation-owned fields into
+        // entities that still exist; never resurrect ones the player removed
+        // since the tick snapshot, and never overwrite player-owned fields
+        // like status / ticketPrice.
+        for (const id of Object.keys(result.rides)) {
+          const cur = state.rides[id];
+          if (!cur) continue;
+          const sim = result.rides[id];
+          cur.currentQueue = sim.currentQueue;
+          cur.ridersOnBoard = sim.ridersOnBoard;
+          cur.rideTimer = sim.rideTimer;
+          cur.totalRevenue = sim.totalRevenue;
+          cur.totalCustomers = sim.totalCustomers;
+          cur.lastBreakdown = sim.lastBreakdown;
+        }
+        for (const id of Object.keys(result.shops)) {
+          const cur = state.shops[id];
+          if (!cur) continue;
+          cur.revenue = result.shops[id].revenue;
+          cur.stock = result.shops[id].stock;
+        }
+        for (const id of Object.keys(result.staff)) {
+          const cur = state.staff[id];
+          if (!cur) continue;
+          cur.tile = result.staff[id].tile;
+          cur.patrolArea = result.staff[id].patrolArea;
+        }
 
         if (result.revenue !== 0) {
           state.money += result.revenue;
