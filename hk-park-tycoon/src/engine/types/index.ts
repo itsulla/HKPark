@@ -208,6 +208,8 @@ export interface Guest {
   thoughtBubble: string | null;
   timeInPark: number;
   pathfindFailures: number;
+  /** Set when this guest is a named VIP persona (Layer 2). */
+  vipPersonaId?: string | null;
 }
 
 // -----------------------------------------------------------------------------
@@ -356,6 +358,18 @@ export interface VIPBrandAffinity {
   product: string;
   relationship: string;
   mentionFrequency: number;
+}
+
+/** A line of VIP commentary surfaced in the VIP feed UI. */
+export interface VIPDialogueLine {
+  id: string;
+  personaId: string;
+  vipName: string;
+  avatarEmoji: string;
+  text: string;
+  /** True when this line is a paid sponsor mention (fires a vip_mention). */
+  sponsored: boolean;
+  timestamp: GameDate;
 }
 
 // -----------------------------------------------------------------------------

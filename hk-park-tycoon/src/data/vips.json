@@ -1,0 +1,82 @@
+[
+  {
+    "id": "mei",
+    "name": "Mei",
+    "title": "Food Influencer",
+    "personality": "Bubbly Kowloon food blogger who films everything for her followers.",
+    "loves": ["DRINK", "FOOD", "GENTLE"],
+    "dislikes": ["THRILL"],
+    "catchphrases": [
+      "Okay this is SO going on my feed!",
+      "The lighting here is perfect, ahh!",
+      "My followers are going to love this."
+    ],
+    "avatarEmoji": "🤳",
+    "brandAffinity": {
+      "brand": "Vita",
+      "product": "Vita Lemon Tea",
+      "relationship": "long-time fan",
+      "mentionFrequency": 0.6
+    }
+  },
+  {
+    "id": "big-mike",
+    "name": "Big Mike",
+    "title": "Thrill Seeker",
+    "personality": "Adrenaline junkie who rates every coaster out of ten, loudly.",
+    "loves": ["THRILL", "WATER"],
+    "dislikes": ["GENTLE"],
+    "catchphrases": [
+      "Is that all you got?!",
+      "Now THAT'S what I'm talking about!",
+      "Again! Let's go again!"
+    ],
+    "avatarEmoji": "🦾",
+    "brandAffinity": null
+  },
+  {
+    "id": "auntie-wong",
+    "name": "Auntie Wong",
+    "title": "Discerning Regular",
+    "personality": "Sharp-eyed retiree who notices every speck of litter and every queue.",
+    "loves": ["GENTLE", "FAMILY"],
+    "dislikes": ["THRILL"],
+    "catchphrases": [
+      "Aiya, look at this queue!",
+      "Very clean today, not bad, not bad.",
+      "In my day the rides were cheaper."
+    ],
+    "avatarEmoji": "👵",
+    "brandAffinity": null
+  },
+  {
+    "id": "dj-kowloon",
+    "name": "DJ Kowloon",
+    "title": "Night Owl",
+    "personality": "Neon-obsessed DJ who treats the park like one big set.",
+    "loves": ["TRANSPORT", "THRILL"],
+    "dislikes": [],
+    "catchphrases": [
+      "This neon is a whole vibe.",
+      "Drop the beat — and the safety bar!",
+      "Hong Kong nights hit different."
+    ],
+    "avatarEmoji": "🎧",
+    "brandAffinity": null
+  },
+  {
+    "id": "little-ho",
+    "name": "Little Ho",
+    "title": "Junior Explorer",
+    "personality": "Wide-eyed kid who wants to ride absolutely everything.",
+    "loves": ["FAMILY", "GENTLE", "WATER"],
+    "dislikes": [],
+    "catchphrases": [
+      "Can we go on that one next? Pleeease?",
+      "Wooooow!",
+      "This is the best day EVER!"
+    ],
+    "avatarEmoji": "🧒",
+    "brandAffinity": null
+  }
+]

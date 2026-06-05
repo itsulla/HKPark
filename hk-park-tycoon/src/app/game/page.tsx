@@ -23,6 +23,7 @@ import { GuestManager } from '../../engine/simulation/GuestManager';
 import { RideManager } from '../../engine/simulation/RideManager';
 import { StaffManager } from '../../engine/simulation/StaffManager';
 import { EconomyManager } from '../../engine/simulation/EconomyManager';
+import { VIPManager } from '../../engine/simulation/VIPManager';
 import { Grid } from '../../engine/world/Grid';
 import SponsorManager from '../../sponsors/SponsorManager';
 import { loadAutoSave, loadGame, autoSave } from '../../state/saveManager';
@@ -36,6 +37,7 @@ import InfoPanel from '../../ui/InfoPanel';
 import FinanceWindow from '../../ui/FinanceWindow';
 import DistrictPanel from '../../ui/DistrictPanel';
 import NotificationToast from '../../ui/NotificationToast';
+import VIPFeed from '../../ui/VIPFeed';
 
 // Dynamic import for PixiJS (no SSR)
 const GameCanvas = dynamic(
@@ -63,6 +65,9 @@ const AUTO_SAVE_INTERVAL_MS = 60_000; // auto-save every 60 seconds of real time
 // Litter model: guests drop litter; janitors clean it. Aggregate (not per-tile).
 const LITTER_PER_GUEST_TICK = 0.02;
 const JANITOR_CLEAN_PER_TICK = 1.5;
+
+// How often (ticks) a VIP pipes up with a line of commentary.
+const VIP_COMMENT_INTERVAL = 120;
 
 // Definition lookup maps (keyed by definition id), built once at module load.
 const RIDE_DEFS: Record<string, RideDefinition> = {};
@@ -102,6 +107,7 @@ function GamePageInner() {
   const rideManagerRef = useRef<RideManager | null>(null);
   const staffManagerRef = useRef<StaffManager | null>(null);
   const economyManagerRef = useRef<EconomyManager | null>(null);
+  const vipManagerRef = useRef<VIPManager | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Store actions (stable references for initialization)
@@ -169,12 +175,14 @@ function GamePageInner() {
     const rideManager = new RideManager(eventBus);
     const staffManager = new StaffManager();
     const economyManager = new EconomyManager(eventBus);
+    const vipManager = new VIPManager();
     parkRatingRef.current = parkRating;
     weatherManagerRef.current = weatherManager;
     guestManagerRef.current = guestManager;
     rideManagerRef.current = rideManager;
     staffManagerRef.current = staffManager;
     economyManagerRef.current = economyManager;
+    vipManagerRef.current = vipManager;
 
     // Create and start game loop
     const gameLoop = new GameLoop(eventBus);
@@ -227,6 +235,23 @@ function GamePageInner() {
         if (guestManager.shouldSpawn(tick, interval)) {
           const guest = guestManager.spawnGuest(entrance);
           guests[guest.id] = guest;
+          newGuestCount++;
+        }
+      }
+
+      // --- VIP spawning (rare, named personas; Layer 2) ---
+      if (entrance && weatherEffects.parkOpen) {
+        const presentVipIds = new Set<string>();
+        for (const g of Object.values(guests)) {
+          if (g.vipPersonaId) presentVipIds.add(g.vipPersonaId);
+        }
+        const persona = vipManager.pickSpawnPersona(tick, presentVipIds);
+        if (persona) {
+          const vipGuest = vipManager.applyPersona(
+            guestManager.spawnGuest(entrance),
+            persona,
+          );
+          guests[vipGuest.id] = vipGuest;
           newGuestCount++;
         }
       }
@@ -340,6 +365,64 @@ function GamePageInner() {
           newLitter,
         );
         useGameStore.getState().setParkRating(rating);
+      }
+
+      // --- VIP commentary (Layer 2 + premium sponsor mentions) ---
+      if (tick % VIP_COMMENT_INTERVAL === 0) {
+        const vipGuests = Object.values(updated).filter((g) => g.vipPersonaId);
+        if (vipGuests.length > 0) {
+          const vipGuest =
+            vipGuests[Math.floor(Math.random() * vipGuests.length)];
+          const persona = vipGuest.vipPersonaId
+            ? vipManager.getPersona(vipGuest.vipPersonaId)
+            : undefined;
+          if (persona) {
+            // Sponsored surfaces currently present in the park.
+            const surfaceIds = new Set<string>();
+            for (const s of Object.values(shops)) surfaceIds.add(s.definitionId);
+            for (const r of Object.values(rides)) surfaceIds.add(r.definitionId);
+            const sponsoredSurfaces: {
+              surfaceId: string;
+              sponsorId: string;
+              brandName: string;
+            }[] = [];
+            for (const defId of Array.from(surfaceIds)) {
+              const sp = SponsorManager.getSponsor(defId);
+              if (sp) {
+                sponsoredSurfaces.push({
+                  surfaceId: defId,
+                  sponsorId: sp.sponsorId,
+                  brandName: sp.brandName,
+                });
+              }
+            }
+
+            const comment = vipManager.generateComment(persona, {
+              rideCount: Object.keys(rides).length,
+              litterHigh: newLitter > 20,
+              sponsoredSurfaces,
+            });
+
+            useGameStore.getState().addVipDialogue({
+              id: `${tick}-${persona.id}`,
+              personaId: persona.id,
+              vipName: persona.name,
+              avatarEmoji: persona.avatarEmoji,
+              text: comment.text,
+              sponsored: comment.sponsored,
+              timestamp: store.date,
+            });
+
+            if (comment.sponsored && comment.surfaceId) {
+              SponsorManager.trackImpression({
+                surfaceType: 'vip',
+                surfaceId: comment.surfaceId,
+                sponsorId: comment.sponsorId,
+                eventType: 'vip_mention',
+              });
+            }
+          }
+        }
       }
     };
 
@@ -477,6 +560,7 @@ function GamePageInner() {
       rideManagerRef.current = null;
       staffManagerRef.current = null;
       economyManagerRef.current = null;
+      vipManagerRef.current = null;
     };
   }, [initialized]);
 
@@ -611,6 +695,9 @@ function GamePageInner() {
       {/* Layer 50+: Modal overlays */}
       {showFinance && <FinanceWindow onClose={() => setShowFinance(false)} />}
       {showDistricts && <DistrictPanel onClose={() => setShowDistricts(false)} />}
+
+      {/* VIP commentary feed (bottom-left) */}
+      <VIPFeed />
 
       {/* Layer 100: Toast notifications */}
       <NotificationToast />

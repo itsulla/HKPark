@@ -20,6 +20,7 @@ import type {
   FinancialReport,
   DecorationDefinition,
   Notification,
+  VIPDialogueLine,
 } from '../engine/types';
 
 import {
@@ -84,6 +85,9 @@ export interface GameStoreState {
   // Environment
   weather: Weather;
   season: Season;
+
+  // VIP commentary feed (Layer 2)
+  vipDialogue: VIPDialogueLine[];
 
   // UI state
   selectedTool: ToolType;
@@ -168,6 +172,9 @@ export interface GameStoreActions {
   // Financial reports
   addMonthlyReport: (report: FinancialReport) => void;
   setParkRating: (rating: number) => void;
+
+  // VIP commentary
+  addVipDialogue: (line: VIPDialogueLine) => void;
 }
 
 export type GameStore = GameStoreState & GameStoreActions;
@@ -422,6 +429,7 @@ function createInitialState(): GameStoreState {
     weather: Weather.CLEAR,
     season: Season.SPRING,
     currentTick: 0,
+    vipDialogue: [],
     notifications: [],
     selectedEntityId: null,
     hoveredTile: null,
@@ -1116,6 +1124,16 @@ export const useGameStore = create<GameStore>()(
     setParkRating: (rating: number) => {
       set((state) => {
         state.parkRating = Math.max(0, Math.min(1000, rating));
+      });
+    },
+
+    addVipDialogue: (line: VIPDialogueLine) => {
+      set((state) => {
+        state.vipDialogue.push(line);
+        // Keep only the most recent lines.
+        if (state.vipDialogue.length > 12) {
+          state.vipDialogue = state.vipDialogue.slice(-12);
+        }
       });
     },
   })),
