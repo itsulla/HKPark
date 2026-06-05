@@ -283,7 +283,7 @@ export class GuestManager {
 
     // Start from the rotating cursor so every guest is eventually processed,
     // even when the population exceeds the per-tick cap.
-    let cursor = n > 0 ? this.processCursor % n : 0;
+    const cursor = n > 0 ? this.processCursor % n : 0;
 
     for (let i = 0; i < count; i++) {
       const guestId = guestIds[(cursor + i) % n];
