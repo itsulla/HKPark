@@ -184,9 +184,15 @@ function GamePageInner() {
     economyManagerRef.current = economyManager;
     vipManagerRef.current = vipManager;
 
-    // Create and start game loop
+    // Create the game loop.
     const gameLoop = new GameLoop(eventBus);
     gameLoopRef.current = gameLoop;
+
+    // Seed the loop + weather from restored state so a loaded save continues
+    // from its real date/tick/weather instead of restarting at day 1 / clear.
+    const seed = useGameStore.getState();
+    gameLoop.hydrate({ currentTick: seed.currentTick, date: seed.date });
+    weatherManager.hydrate(seed.weather, seed.season);
 
     // ---- Per-tick simulation orchestration ----
     // Reads a fresh store snapshot, runs all managers on UNFROZEN clones, then
@@ -410,7 +416,7 @@ function GamePageInner() {
               avatarEmoji: persona.avatarEmoji,
               text: comment.text,
               sponsored: comment.sponsored,
-              timestamp: store.date,
+              timestamp: useGameStore.getState().date,
             });
 
             if (comment.sponsored && comment.surfaceId && comment.sponsorId) {

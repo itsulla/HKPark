@@ -40,6 +40,20 @@ export class GameLoop {
     this.eventBus = eventBus;
   }
 
+  /**
+   * Seed the loop's clock from restored state so a loaded save continues from
+   * its real date/tick instead of restarting at day 1 (which would otherwise
+   * overwrite the restored store date via the day handler).
+   */
+  hydrate(seed: { currentTick?: number; date?: GameDate }): void {
+    if (typeof seed.currentTick === 'number' && Number.isFinite(seed.currentTick)) {
+      this.currentTick = seed.currentTick;
+    }
+    if (seed.date) {
+      this.date = { ...seed.date };
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------

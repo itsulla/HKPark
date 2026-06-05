@@ -26,6 +26,7 @@ import type {
 import {
   TileType,
   GameSpeed,
+  GuestState,
   StaffType,
   Weather,
   Season,
@@ -521,6 +522,30 @@ export const useGameStore = create<GameStore>()(
           ? Math.max(0, state.litter)
           : 0;
 
+        // Normalize in-flight guests. Ride/shop timers live in GuestManager
+        // (in-memory, not persisted), so a guest saved mid-ride/queue/shop would
+        // otherwise resume with a zero timer and instantly "complete" — double
+        // charging cash and inflating ride revenue. Send them back to walking
+        // and clear ride queues/riders so the loaded park is consistent.
+        for (const guestId of Object.keys(state.guests)) {
+          const g = state.guests[guestId];
+          if (
+            g.state === GuestState.RIDING ||
+            g.state === GuestState.QUEUING ||
+            g.state === GuestState.SHOPPING
+          ) {
+            g.state = GuestState.WALKING;
+            g.currentRideId = null;
+            g.currentPath = [];
+            g.targetTile = null;
+          }
+        }
+        for (const rideId of Object.keys(state.rides)) {
+          state.rides[rideId].currentQueue = [];
+          state.rides[rideId].ridersOnBoard = [];
+          state.rides[rideId].rideTimer = 0;
+        }
+
         // Reset transient UI / selection state — never restored from a save.
         state.selectedTool = ToolType.SELECT;
         state.selectedEntityId = null;
@@ -857,7 +882,7 @@ export const useGameStore = create<GameStore>()(
     setTicketPrice: (rideId: string, price: number) => {
       set((state) => {
         const ride = state.rides[rideId];
-        if (ride) {
+        if (ride && Number.isFinite(price)) {
           ride.ticketPrice = Math.max(0, price);
         }
       });
@@ -945,6 +970,7 @@ export const useGameStore = create<GameStore>()(
 
     addMoney: (amount: number, _category: string, _description: string) => {
       set((state) => {
+        if (!Number.isFinite(amount)) return;
         state.money += amount;
       });
     },
@@ -957,6 +983,7 @@ export const useGameStore = create<GameStore>()(
       let success = false;
 
       set((state) => {
+        if (!Number.isFinite(amount) || amount < 0) return;
         if (state.money < amount) return;
         state.money -= amount;
         success = true;
@@ -1045,6 +1072,13 @@ export const useGameStore = create<GameStore>()(
           cur.totalRevenue = sim.totalRevenue;
           cur.totalCustomers = sim.totalCustomers;
           cur.lastBreakdown = sim.lastBreakdown;
+          // Invariant: a broken ride never has riders queued or onboard,
+          // regardless of what the simulation clone carried.
+          if (cur.status === 'broken') {
+            cur.currentQueue = [];
+            cur.ridersOnBoard = [];
+            cur.rideTimer = 0;
+          }
         }
         for (const id of Object.keys(result.shops)) {
           const cur = state.shops[id];
@@ -1059,13 +1093,15 @@ export const useGameStore = create<GameStore>()(
           cur.patrolArea = result.staff[id].patrolArea;
         }
 
-        if (result.revenue !== 0) {
+        if (Number.isFinite(result.revenue) && result.revenue !== 0) {
           state.money += result.revenue;
         }
         if (result.newGuestCount > 0) {
           state.totalGuestsAllTime += result.newGuestCount;
         }
-        state.litter = result.litter;
+        state.litter = Number.isFinite(result.litter)
+          ? Math.max(0, result.litter)
+          : state.litter;
 
         const count = Object.keys(result.guests).length;
         if (count > state.maxGuestsAtOnce) {

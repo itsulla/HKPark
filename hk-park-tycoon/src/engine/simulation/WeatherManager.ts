@@ -81,6 +81,12 @@ export class WeatherManager {
     this.eventBus = eventBus;
   }
 
+  /** Seed weather/season from restored state so a loaded save stays consistent. */
+  hydrate(weather: Weather, season: Season): void {
+    this.currentWeather = weather;
+    this.currentSeason = season;
+  }
+
   // ---------------------------------------------------------------------------
   // Season
   // ---------------------------------------------------------------------------
