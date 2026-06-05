@@ -1,0 +1,16 @@
+[
+  {
+    "sponsorId": "vita-lemon-tea",
+    "surfaceId": "bubble-tea-bar",
+    "brandName": "Vita",
+    "displayName": "Vita Lemon Tea Stand",
+    "logoUrl": "🍋",
+    "colorScheme": "#FFD400",
+    "description": "Ice-cold Vita Lemon Tea — Hong Kong's favourite since 1979.",
+    "clickUrl": null,
+    "impressionTrackingId": "vita-001",
+    "tier": "shop",
+    "startDate": "2020-01-01",
+    "endDate": "2099-12-31"
+  }
+]

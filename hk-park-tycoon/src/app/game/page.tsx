@@ -24,6 +24,7 @@ import { RideManager } from '../../engine/simulation/RideManager';
 import { StaffManager } from '../../engine/simulation/StaffManager';
 import { EconomyManager } from '../../engine/simulation/EconomyManager';
 import { Grid } from '../../engine/world/Grid';
+import SponsorManager from '../../sponsors/SponsorManager';
 import { loadAutoSave, loadGame, autoSave } from '../../state/saveManager';
 import { GameSpeed, ToolType, TileType, StaffType } from '../../engine/types';
 import type { RideDefinition, ShopDefinition, GameDate } from '../../engine/types';
@@ -113,6 +114,10 @@ function GamePageInner() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Load active sponsor campaigns once (safe to fire-and-forget; the game
+    // works with zero sponsors).
+    void SponsorManager.loadSponsors();
 
     async function init() {
       if (isNewGame) {
@@ -462,6 +467,9 @@ function GamePageInner() {
         clearInterval(autoSaveTimerRef.current);
         autoSaveTimerRef.current = null;
       }
+
+      // Flush any buffered impression events before tearing down.
+      SponsorManager.getTracker().flush();
 
       parkRatingRef.current = null;
       weatherManagerRef.current = null;

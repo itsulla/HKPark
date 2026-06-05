@@ -1,7 +1,29 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useGameStore } from '../state/gameStore';
+import SponsorManager from '../sponsors/SponsorManager';
 import type { Ride, Shop, Guest } from '../engine/types';
+
+// ---------------------------------------------------------------------------
+// Sponsor badge — shown when a surface is currently branded by a sponsor.
+// ---------------------------------------------------------------------------
+
+function SponsoredBadge({ color, brand }: { color: string; brand: string }) {
+  return (
+    <span
+      className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full border"
+      style={{
+        color,
+        borderColor: `${color}55`,
+        backgroundColor: `${color}1a`,
+        boxShadow: `0 0 8px ${color}33`,
+      }}
+    >
+      Sponsored · {brand}
+    </span>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Shared sub-components
@@ -85,15 +107,21 @@ function RideInfo({ ride }: { ride: Ride }) {
 
   const isOpen = ride.status === 'open';
 
+  const display = SponsorManager.getDisplayConfig(ride.definitionId);
+  const sponsor = SponsorManager.getSponsor(ride.definitionId);
+
   return (
     <div className="space-y-4">
       {/* Name + Status */}
       <div>
         <h3 className="text-lg font-bold text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">
-          {ride.name}
+          {sponsor ? display.name : ride.name}
         </h3>
-        <div className="mt-1.5">
+        <div className="mt-1.5 flex items-center gap-2">
           <StatusBadge status={ride.status} />
+          {sponsor && (
+            <SponsoredBadge color={display.color} brand={sponsor.brandName} />
+          )}
         </div>
       </div>
 
@@ -214,11 +242,26 @@ function ShopInfo({ shop }: { shop: Shop }) {
         ? 'neon-bar-yellow'
         : 'neon-bar-red';
 
+  // Sponsor branding swap: a sponsored shop shows the brand identity instead
+  // of its default HK name; otherwise the default (== shop.name) is shown.
+  const display = SponsorManager.getDisplayConfig(shop.definitionId);
+  const sponsor = SponsorManager.getSponsor(shop.definitionId);
+
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-bold text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">
-        {shop.name}
-      </h3>
+      <div>
+        <h3 className="text-lg font-bold text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">
+          {sponsor ? display.name : shop.name}
+        </h3>
+        {sponsor && (
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            <div>
+              <SponsoredBadge color={display.color} brand={sponsor.brandName} />
+            </div>
+            <p className="text-xs text-[#94a3b8] italic">{display.description}</p>
+          </div>
+        )}
+      </div>
 
       <SectionDivider label="Inventory" />
 
@@ -354,6 +397,29 @@ export default function InfoPanel() {
   const rides = useGameStore((s) => s.rides);
   const shops = useGameStore((s) => s.shops);
   const guests = useGameStore((s) => s.guests);
+
+  // Fire a 'click' impression whenever a ride/shop surface is selected. This is
+  // the player engaging with a sponsorable surface — exactly the signal a brand
+  // pays for. Runs before the early return to keep hook order stable.
+  useEffect(() => {
+    if (!selectedEntityId) return;
+    const selectedRide = rides[selectedEntityId];
+    const selectedShop = shops[selectedEntityId];
+    const surface = selectedRide
+      ? ({ type: 'ride' as const, definitionId: selectedRide.definitionId })
+      : selectedShop
+        ? ({ type: 'shop' as const, definitionId: selectedShop.definitionId })
+        : null;
+    if (!surface) return;
+    const sponsor = SponsorManager.getSponsor(surface.definitionId);
+    SponsorManager.trackImpression({
+      surfaceType: surface.type,
+      surfaceId: surface.definitionId,
+      sponsorId: sponsor?.sponsorId ?? null,
+      eventType: 'click',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEntityId]);
 
   if (!selectedEntityId) return null;
 

@@ -38,7 +38,9 @@ class SponsorManagerClass {
       const res = await fetch('/api/sponsors');
       if (!res.ok) return;
       const sponsors: SponsorConfig[] = await res.json();
-      sponsors.forEach((s) => this.configs.set(s.sponsorId, s));
+      // Key by the SURFACE the sponsor brands (a ride/shop definition id), so
+      // getDisplayConfig(definitionId) can find it.
+      sponsors.forEach((s) => this.configs.set(s.surfaceId, s));
       this.loaded = true;
     } catch {
       // Sponsors are optional — game works perfectly without them

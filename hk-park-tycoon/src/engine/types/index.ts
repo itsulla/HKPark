@@ -299,6 +299,8 @@ export type ImpressionEventType = 'view' | 'click' | 'hover' | 'vip_mention';
 
 export interface SponsorConfig {
   sponsorId: string;
+  /** The surface this sponsor brands — a ride/shop/etc. definition id. */
+  surfaceId: string;
   brandName: string;
   displayName: string;
   logoUrl: string;
