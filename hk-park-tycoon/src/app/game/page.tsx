@@ -72,8 +72,9 @@ function GamePageInner() {
   const weatherManagerRef = useRef<WeatherManager | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Store action (stable reference for initialization)
+  // Store actions (stable references for initialization)
   const initGame = useGameStore((s) => s.initGame);
+  const hydrateGame = useGameStore((s) => s.hydrateGame);
 
   // -------------------------------------------------------------------------
   // Initialize game on mount
@@ -87,10 +88,10 @@ function GamePageInner() {
         // Start a fresh game
         initGame('My HK Park');
       } else if (loadSlot) {
-        // Load specific save slot
+        // Load specific save slot — restore the full park, not just its name.
         const savedState = await loadGame(loadSlot);
         if (savedState && !cancelled) {
-          initGame(savedState.parkName || 'My HK Park');
+          hydrateGame(savedState);
         } else if (!cancelled) {
           initGame('My HK Park');
         }
@@ -98,7 +99,7 @@ function GamePageInner() {
         // Try to load auto-save, fall back to new game
         const savedState = await loadAutoSave();
         if (savedState && !cancelled) {
-          initGame(savedState.parkName || 'My HK Park');
+          hydrateGame(savedState);
         } else if (!cancelled) {
           initGame('My HK Park');
         }
@@ -114,7 +115,7 @@ function GamePageInner() {
     return () => {
       cancelled = true;
     };
-  }, [isNewGame, loadSlot, initGame]);
+  }, [isNewGame, loadSlot, initGame, hydrateGame]);
 
   // -------------------------------------------------------------------------
   // Start game loop and simulation after initialization

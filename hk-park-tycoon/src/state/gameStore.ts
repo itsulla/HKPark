@@ -99,6 +99,7 @@ export interface GameStoreState {
 export interface GameStoreActions {
   // Initialization
   initGame: (parkName: string) => void;
+  hydrateGame: (saved: Partial<GameStoreState>) => void;
 
   // Speed / Tool / UI
   setSpeed: (speed: GameSpeed) => void;
@@ -405,6 +406,54 @@ export const useGameStore = create<GameStore>()(
             state.grid[entranceY][entranceX].entityId = 'entrance-main';
           }
         }
+      });
+    },
+
+    /**
+     * Restore a previously saved game. Starts from fresh defaults (so any
+     * fields missing from an older save get sane values) and overlays the
+     * persisted gameplay data. Transient UI/selection state is reset rather
+     * than restored.
+     */
+    hydrateGame: (saved: Partial<GameStoreState>) => {
+      set((state) => {
+        Object.assign(state, createInitialState());
+
+        const PERSIST_KEYS: (keyof GameStoreState)[] = [
+          'grid',
+          'districts',
+          'money',
+          'loanAmount',
+          'loanInterestRate',
+          'monthlyReports',
+          'date',
+          'speed',
+          'currentTick',
+          'guests',
+          'rides',
+          'shops',
+          'staff',
+          'parkRating',
+          'parkName',
+          'totalGuestsAllTime',
+          'maxGuestsAtOnce',
+          'weather',
+          'season',
+        ];
+
+        for (const key of PERSIST_KEYS) {
+          if (saved[key] !== undefined) {
+            (state as Record<string, unknown>)[key] = saved[key];
+          }
+        }
+
+        // Reset transient UI / selection state — never restored from a save.
+        state.selectedTool = ToolType.SELECT;
+        state.selectedEntityId = null;
+        state.hoveredTile = null;
+        state.placementRotation = 0;
+        state.placementDefinitionId = null;
+        state.notifications = [];
       });
     },
 

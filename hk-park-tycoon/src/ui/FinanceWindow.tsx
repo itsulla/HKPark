@@ -353,14 +353,14 @@ export default function FinanceWindow({ onClose }: FinanceWindowProps) {
               <div className="flex justify-between items-center">
                 <span className="text-[#94a3b8]">Interest Rate</span>
                 <span className="font-mono text-gray-300 font-medium">
-                  {(loanInterestRate * 100).toFixed(1)}%/mo
+                  {(loanInterestRate * 100).toFixed(1)}%/yr
                 </span>
               </div>
               {loanAmount > 0 && (
                 <div className="flex justify-between items-center pt-1 border-t border-white/5">
                   <span className="text-[#94a3b8]">Monthly Interest</span>
                   <span className="font-mono text-red-400 text-xs">
-                    {formatMoney(Math.round(loanAmount * loanInterestRate))}
+                    {formatMoney(Math.round((loanAmount * loanInterestRate) / 12))}
                   </span>
                 </div>
               )}

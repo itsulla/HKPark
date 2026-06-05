@@ -3,6 +3,7 @@
 // =============================================================================
 
 import type { GameDate } from '../engine/types';
+import type { GameStoreState } from './gameStore';
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -12,6 +13,8 @@ const DB_NAME = 'hk-park-tycoon';
 const DB_VERSION = 1;
 const STORE_NAME = 'saves';
 const AUTO_SAVE_SLOT = '__autosave__';
+/** Bump when the persisted state shape changes incompatibly. */
+const SAVE_VERSION = 1;
 
 // -----------------------------------------------------------------------------
 // Types
@@ -25,20 +28,21 @@ export interface SaveMetadata {
   timestamp: number;
 }
 
-/** Shape of the game state object passed into save functions. */
-export interface SaveData {
-  parkName: string;
-  money: number;
-  date: GameDate;
-}
+/**
+ * Full serializable game state. Functions on the store are dropped by
+ * JSON.stringify, leaving only the data fields — which is exactly what we
+ * want to persist and later restore via `hydrateGame`.
+ */
+export type SaveData = GameStoreState;
 
 interface SaveRecord {
   slotId: string;
+  version: number;
   parkName: string;
   money: number;
   date: GameDate;
   timestamp: number;
-  state: string; // JSON-serialized game state
+  state: string; // JSON-serialized full game state
 }
 
 // -----------------------------------------------------------------------------
@@ -114,6 +118,7 @@ function withStore<T = unknown>(
 export async function saveGame(slotId: string, state: SaveData): Promise<void> {
   const record: SaveRecord = {
     slotId,
+    version: SAVE_VERSION,
     parkName: state.parkName ?? 'Unknown Park',
     money: state.money ?? 0,
     date: state.date ?? { day: 1, month: 1, year: 1 },
