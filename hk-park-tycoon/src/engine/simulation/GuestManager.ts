@@ -128,6 +128,7 @@ export class GuestManager {
       energy: 200 + Math.random() * 55,
       intensityTolerance: gaussianRandom(5, 2, 1, 10),
       nauseaTolerance: gaussianRandom(5, 2, 1, 10),
+      age: Math.floor(gaussianRandom(30, 14, 6, 75)),
       cash: 80 + Math.random() * 220,
       currentPath: [],
       targetTile: null,
@@ -835,7 +836,7 @@ export class GuestManager {
     guestPos: Position,
     grid: Grid,
     rides: Record<string, Ride>,
-    _rideDefinitions: Record<string, RideDefinition>,
+    rideDefinitions: Record<string, RideDefinition>,
     _currentTick: number,
   ): Ride | null {
     const rideList = Object.values(rides);
@@ -860,6 +861,12 @@ export class GuestManager {
 
       // Nausea check
       if (ride.nausea > guest.nauseaTolerance + 1) continue;
+
+      // Age restriction check (definition minAge/maxAge)
+      const def = rideDefinitions[ride.definitionId];
+      if (def && typeof guest.age === 'number') {
+        if (guest.age < def.minAge || guest.age > def.maxAge) continue;
+      }
 
       // Skip recently ridden
       if (recentRideIds.has(ride.id)) continue;

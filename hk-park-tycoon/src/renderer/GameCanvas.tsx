@@ -20,7 +20,9 @@ import { Camera } from './Camera';
 import { TerrainLayer } from './layers/TerrainLayer';
 import { BuildingLayer } from './layers/BuildingLayer';
 import { GuestLayer } from './layers/GuestLayer';
+import { StaffLayer } from './layers/StaffLayer';
 import { UILayer } from './layers/UILayer';
+import { AmbientLayer } from './layers/AmbientLayer';
 import {
   ToolType,
   GameSpeed,
@@ -122,7 +124,9 @@ export default function GameCanvas() {
   const terrainLayerRef = useRef<TerrainLayer | null>(null);
   const buildingLayerRef = useRef<BuildingLayer | null>(null);
   const guestLayerRef = useRef<GuestLayer | null>(null);
+  const staffLayerRef = useRef<StaffLayer | null>(null);
   const uiLayerRef = useRef<UILayer | null>(null);
+  const ambientLayerRef = useRef<AmbientLayer | null>(null);
   const rafRef = useRef<number>(0);
   const mountedRef = useRef<boolean>(true);
 
@@ -337,9 +341,7 @@ export default function GameCanvas() {
       case '6':
         store.setTool(ToolType.DEMOLISH);
         break;
-      case '7':
-        store.setTool(ToolType.TERRAFORM);
-        break;
+      // '7' opens the Staff panel — handled by the Toolbar component.
 
       default:
         break;
@@ -422,17 +424,26 @@ export default function GameCanvas() {
       const terrainLayer = new TerrainLayer();
       const buildingLayer = new BuildingLayer();
       const guestLayer = new GuestLayer();
+      const staffLayer = new StaffLayer();
       const uiLayer = new UILayer();
 
       world.addChild(terrainLayer);
       world.addChild(buildingLayer);
       world.addChild(guestLayer);
+      world.addChild(staffLayer);
       world.addChild(uiLayer);
+
+      // Ambient overlay lives in SCREEN space (above the world), so the
+      // day/night tint and rain cover the whole canvas regardless of camera.
+      const ambientLayer = new AmbientLayer();
+      app.stage.addChild(ambientLayer);
 
       terrainLayerRef.current = terrainLayer;
       buildingLayerRef.current = buildingLayer;
       guestLayerRef.current = guestLayer;
+      staffLayerRef.current = staffLayer;
       uiLayerRef.current = uiLayer;
+      ambientLayerRef.current = ambientLayer;
 
       // Bind DOM events
       const canvas = app.canvas as HTMLCanvasElement;
@@ -492,6 +503,13 @@ export default function GameCanvas() {
         );
         buildingLayer.update(state.rides, state.shops, viewportBounds);
         guestLayer.update(state.guests, zoom, viewportBounds);
+        staffLayer.update(state.staff, viewportBounds);
+        ambientLayer.update(
+          state.currentTick,
+          state.weather,
+          canvasWidth,
+          canvasHeight,
+        );
 
         // UI layer: determine placement validity
         const hoveredTile = state.hoveredTile;

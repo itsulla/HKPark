@@ -210,6 +210,31 @@ export interface Guest {
   pathfindFailures: number;
   /** Set when this guest is a named VIP persona (Layer 2). */
   vipPersonaId?: string | null;
+  /** Guest age in years; checked against ride minAge/maxAge restrictions. */
+  age?: number;
+}
+
+// -----------------------------------------------------------------------------
+// Random Park Events
+// -----------------------------------------------------------------------------
+
+/** An active timed park event (festival, holiday rush, celebrity visit). */
+export interface ActiveParkEvent {
+  name: string;
+  /** Multiplies the guest spawn rate while active (1 = no effect). */
+  spawnMultiplier: number;
+  /** Multiplies the park rating while active (1 = no effect). */
+  ratingMultiplier: number;
+  daysRemaining: number;
+}
+
+// -----------------------------------------------------------------------------
+// Win / Lose
+// -----------------------------------------------------------------------------
+
+/** Set when the park has failed (bankruptcy). */
+export interface GameOverState {
+  reason: string;
 }
 
 // -----------------------------------------------------------------------------

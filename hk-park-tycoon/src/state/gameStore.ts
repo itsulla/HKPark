@@ -21,6 +21,8 @@ import type {
   DecorationDefinition,
   Notification,
   VIPDialogueLine,
+  ActiveParkEvent,
+  GameOverState,
 } from '../engine/types';
 
 import {
@@ -89,6 +91,17 @@ export interface GameStoreState {
 
   // VIP commentary feed (Layer 2)
   vipDialogue: VIPDialogueLine[];
+
+  // Random park events (festival, holiday rush, celebrity visit)
+  activeEvent: ActiveParkEvent | null;
+
+  // Win/lose
+  /** Consecutive days the park has been in debt (money < 0). */
+  daysInDebt: number;
+  /** Set when the park goes bankrupt; pauses and overlays the game. */
+  gameOver: GameOverState | null;
+  /** True once the victory milestones have been hit (shown once). */
+  victoryAchieved: boolean;
 
   // UI state
   selectedTool: ToolType;
@@ -176,6 +189,14 @@ export interface GameStoreActions {
 
   // VIP commentary
   addVipDialogue: (line: VIPDialogueLine) => void;
+
+  // Random park events
+  setActiveEvent: (event: ActiveParkEvent | null) => void;
+
+  // Win/lose
+  setDaysInDebt: (days: number) => void;
+  setGameOver: (gameOver: GameOverState | null) => void;
+  setVictoryAchieved: (achieved: boolean) => void;
 }
 
 export type GameStore = GameStoreState & GameStoreActions;
@@ -431,6 +452,10 @@ function createInitialState(): GameStoreState {
     season: Season.SPRING,
     currentTick: 0,
     vipDialogue: [],
+    activeEvent: null,
+    daysInDebt: 0,
+    gameOver: null,
+    victoryAchieved: false,
     notifications: [],
     selectedEntityId: null,
     hoveredTile: null,
@@ -509,6 +534,10 @@ export const useGameStore = create<GameStore>()(
           'litter',
           'weather',
           'season',
+          'activeEvent',
+          'daysInDebt',
+          'gameOver',
+          'victoryAchieved',
         ];
 
         for (const key of PERSIST_KEYS) {
@@ -1171,6 +1200,41 @@ export const useGameStore = create<GameStore>()(
         if (state.vipDialogue.length > 12) {
           state.vipDialogue = state.vipDialogue.slice(-12);
         }
+      });
+    },
+
+    // -------------------------------------------------------------------------
+    // Random park events
+    // -------------------------------------------------------------------------
+
+    setActiveEvent: (event: ActiveParkEvent | null) => {
+      set((state) => {
+        state.activeEvent = event;
+      });
+    },
+
+    // -------------------------------------------------------------------------
+    // Win / lose
+    // -------------------------------------------------------------------------
+
+    setDaysInDebt: (days: number) => {
+      set((state) => {
+        state.daysInDebt = Math.max(0, days);
+      });
+    },
+
+    setGameOver: (gameOver: GameOverState | null) => {
+      set((state) => {
+        state.gameOver = gameOver;
+        if (gameOver) {
+          state.speed = GameSpeed.PAUSED;
+        }
+      });
+    },
+
+    setVictoryAchieved: (achieved: boolean) => {
+      set((state) => {
+        state.victoryAchieved = achieved;
       });
     },
   })),

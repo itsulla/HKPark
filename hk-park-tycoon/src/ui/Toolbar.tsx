@@ -5,13 +5,14 @@ import { useGameStore } from '../state/gameStore';
 import { ToolType } from '../engine/types';
 import RidePicker from './RidePicker';
 import ShopPicker from './ShopPicker';
+import StaffPicker from './StaffPicker';
 
 interface ToolButton {
   tool: ToolType | null;
   icon: string;
   label: string;
   shortcut: string;
-  opensSubmenu?: 'rides' | 'shops';
+  opensSubmenu?: 'rides' | 'shops' | 'staff';
   opensModal?: 'finance' | 'districts';
 }
 
@@ -22,7 +23,7 @@ const toolButtons: ToolButton[] = [
   { tool: ToolType.PLACE_SHOP, icon: '\uD83C\uDFEA', label: 'Shops', shortcut: '4', opensSubmenu: 'shops' },
   { tool: ToolType.PLACE_DECORATION, icon: '\uD83C\uDF33', label: 'Decor', shortcut: '5' },
   { tool: ToolType.DEMOLISH, icon: '\uD83D\uDD28', label: 'Demolish', shortcut: '6' },
-  { tool: null, icon: '\uD83D\uDC65', label: 'Staff', shortcut: '7' },
+  { tool: null, icon: '\uD83D\uDC65', label: 'Staff', shortcut: '7', opensSubmenu: 'staff' },
   { tool: null, icon: '\uD83D\uDCCA', label: 'Finance', shortcut: '', opensModal: 'finance' },
   { tool: null, icon: '\uD83D\uDDFA\uFE0F', label: 'Districts', shortcut: '', opensModal: 'districts' },
 ];
@@ -37,7 +38,7 @@ export default function Toolbar({ onOpenFinance, onOpenDistricts }: ToolbarProps
   const setTool = useGameStore((s) => s.setTool);
   const setPlacementDefinition = useGameStore((s) => s.setPlacementDefinition);
 
-  const [submenu, setSubmenu] = useState<'rides' | 'shops' | null>(null);
+  const [submenu, setSubmenu] = useState<'rides' | 'shops' | 'staff' | null>(null);
 
   const handleClick = useCallback(
     (btn: ToolButton) => {
@@ -102,6 +103,7 @@ export default function Toolbar({ onOpenFinance, onOpenDistricts }: ToolbarProps
       <div className="relative">
         {submenu === 'rides' && <RidePicker onClose={closeSubmenu} />}
         {submenu === 'shops' && <ShopPicker onClose={closeSubmenu} />}
+        {submenu === 'staff' && <StaffPicker onClose={closeSubmenu} />}
 
         {/* Tool buttons row */}
         <div className="flex items-center gap-1.5">

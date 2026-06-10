@@ -1,22 +1,24 @@
 // =============================================================================
-// HK Theme Park Tycoon - Guest Layer (optimized)
+// HK Theme Park Tycoon - Guest Layer (sprite-based, pooled)
 // =============================================================================
 //
-// Performance features:
-//   - Object pooling: Graphics objects are pre-created and reused
-//   - Avoid clearing/redrawing every frame: each pooled object caches its
-//     last-drawn happiness bracket and radius so we only call clear()+circle()
-//     when the visual actually changes
-//   - Frustum culling: guests outside the viewport are hidden
-//   - At low zoom (<0.8x), guests render as 2px dots instead of 4px
-//   - Pool cap of 500 objects; excess guests beyond pool size are not drawn
+// Renders guests as tiny character sprites (loaded from /sprites/characters/
+// guest.png). Falls back to coloured happiness-dots when the texture is missing.
+//
+// Performance:
+//   - Sprite pool (POOL_SIZE cap) — no per-frame allocations
+//   - Frustum culling — guests outside the viewport are hidden
+//   - Tint-only updates — only the colour (happiness bracket) changes per frame;
+//     the sprite/geometry is reused
+//   - At very low zoom (<0.5×), guests render as 3px dots for clarity
 // =============================================================================
 
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture, Assets } from 'pixi.js';
 import { Guest } from '../../engine/types';
 import { TILE_SIZE, ViewportBounds } from '../Camera';
 
 const POOL_SIZE = 500;
+const GUEST_SPRITE_SIZE = TILE_SIZE * 0.7; // 70% of a tile — visible but not overwhelming
 
 /** Happiness color brackets. */
 const enum HappinessBracket {
@@ -42,45 +44,82 @@ function getHappinessBracket(happiness: number): HappinessBracket {
 
 /** Per-pool-entry cached state. */
 interface PoolEntry {
-  gfx: Graphics;
+  sprite: Sprite | null;    // character sprite (null until texture loads)
+  gfx: Graphics;            // fallback dot
+  vipBadge: Graphics;       // gold star shown above VIP guests
   lastBracket: HappinessBracket | -1;
-  lastRadius: number;
+}
+
+const VIP_GOLD = 0xf0c040;
+
+/** Draw a small 5-point star into a Graphics object centred at (0,0). */
+function drawStar(gfx: Graphics, radius: number): void {
+  const points: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? radius : radius * 0.45;
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    points.push(Math.cos(angle) * r, Math.sin(angle) * r);
+  }
+  gfx.poly(points);
+  gfx.fill({ color: VIP_GOLD });
+  gfx.poly(points);
+  gfx.stroke({ color: 0xffffff, width: 1, alpha: 0.8 });
 }
 
 export class GuestLayer extends Container {
   private pool: PoolEntry[] = [];
+  private guestTexture: Texture | null = null;
+  private textureReady = false;
 
   constructor() {
     super();
-
-    // Pre-create the pool
+    // Pre-create the fallback pool (Graphics dots) and VIP badges
     for (let i = 0; i < POOL_SIZE; i++) {
       const gfx = new Graphics();
       gfx.visible = false;
       this.addChild(gfx);
-      this.pool.push({
-        gfx,
-        lastBracket: -1,
-        lastRadius: -1,
-      });
+      const vipBadge = new Graphics();
+      drawStar(vipBadge, 7);
+      vipBadge.visible = false;
+      this.addChild(vipBadge);
+      this.pool.push({ sprite: null, gfx, vipBadge, lastBracket: -1 });
+    }
+    void this.loadTexture();
+  }
+
+  private async loadTexture(): Promise<void> {
+    try {
+      this.guestTexture = (await Assets.load('/sprites/characters/guest.png')) as Texture;
+      if (this.guestTexture) {
+        this.textureReady = true;
+        // Create sprite instances in the pool
+        for (const entry of this.pool) {
+          const sp = new Sprite(this.guestTexture);
+          sp.anchor.set(0.5, 1); // bottom-centre
+          sp.width = GUEST_SPRITE_SIZE;
+          sp.height = GUEST_SPRITE_SIZE;
+          sp.visible = false;
+          this.addChild(sp);
+          entry.sprite = sp;
+        }
+      }
+    } catch {
+      // No guest sprite → keep using coloured dots.
     }
   }
 
   /**
-   * Update guest dot positions and colors.
-   *
-   * @param guests         - Record of all active guests
-   * @param zoom           - current camera zoom level (affects dot size)
-   * @param viewportBounds - visible region in tile coordinates for frustum culling
+   * Update guest positions and colors.
    */
   update(
     guests: Record<string, Guest>,
     zoom: number,
     viewportBounds: ViewportBounds,
   ): void {
-    const radius = zoom < 0.8 ? 2 : 4;
+    const useDots = !this.textureReady || zoom < 0.5;
+    const dotRadius = zoom < 0.5 ? 3 : 5;
 
-    // Viewport bounds in tile coords (with a small margin)
+    // Viewport bounds in tile coords (with margin)
     const vMinX = viewportBounds.x - 1;
     const vMinY = viewportBounds.y - 1;
     const vMaxX = viewportBounds.x + viewportBounds.w + 1;
@@ -93,7 +132,7 @@ export class GuestLayer extends Container {
 
       const guest = guests[guestId];
 
-      // Frustum culling: skip guests outside the visible area
+      // Frustum culling
       if (
         guest.x < vMinX ||
         guest.x > vMaxX ||
@@ -105,20 +144,43 @@ export class GuestLayer extends Container {
 
       const entry = this.pool[poolIdx];
       const bracket = getHappinessBracket(guest.happiness);
+      const px = guest.x * TILE_SIZE + TILE_SIZE / 2;
+      const py = guest.y * TILE_SIZE + TILE_SIZE;
 
-      // Only redraw the circle graphic when its visual properties change
-      if (entry.lastBracket !== bracket || entry.lastRadius !== radius) {
-        entry.gfx.clear();
-        entry.gfx.circle(0, 0, radius);
-        entry.gfx.fill({ color: BRACKET_COLORS[bracket] });
+      const isVip = !!guest.vipPersonaId;
+
+      if (useDots) {
+        // Fallback: coloured dot
+        if (entry.sprite) entry.sprite.visible = false;
+        if (entry.lastBracket !== bracket) {
+          entry.gfx.clear();
+          entry.gfx.circle(0, 0, dotRadius);
+          entry.gfx.fill({ color: BRACKET_COLORS[bracket] });
+          entry.lastBracket = bracket;
+        }
+        entry.gfx.x = px;
+        entry.gfx.y = py - TILE_SIZE / 2;
+        entry.gfx.visible = true;
+      } else {
+        // Character sprite — tinted by happiness; VIPs stay untinted (gold star
+        // marks them instead) so they pop against the crowd.
+        entry.gfx.visible = false;
+        const sp = entry.sprite!;
+        sp.tint = isVip ? 0xffffff : BRACKET_COLORS[bracket];
+        sp.x = px;
+        sp.y = py;
+        sp.visible = true;
         entry.lastBracket = bracket;
-        entry.lastRadius = radius;
       }
 
-      // Position update is cheap (just sets x/y transform, no GPU work)
-      entry.gfx.x = guest.x * TILE_SIZE + TILE_SIZE / 2;
-      entry.gfx.y = guest.y * TILE_SIZE + TILE_SIZE / 2;
-      entry.gfx.visible = true;
+      // VIP badge: gold star floating above the guest.
+      if (isVip) {
+        entry.vipBadge.x = px;
+        entry.vipBadge.y = py - (useDots ? TILE_SIZE * 0.85 : GUEST_SPRITE_SIZE + 8);
+        entry.vipBadge.visible = true;
+      } else if (entry.vipBadge.visible) {
+        entry.vipBadge.visible = false;
+      }
 
       poolIdx++;
     }
@@ -128,9 +190,13 @@ export class GuestLayer extends Container {
       const entry = this.pool[i];
       if (entry.gfx.visible) {
         entry.gfx.visible = false;
-        // Reset cached state so next activation redraws
         entry.lastBracket = -1;
-        entry.lastRadius = -1;
+      }
+      if (entry.sprite?.visible) {
+        entry.sprite.visible = false;
+      }
+      if (entry.vipBadge.visible) {
+        entry.vipBadge.visible = false;
       }
     }
   }

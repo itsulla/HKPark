@@ -4,7 +4,7 @@
 
 import { Container } from 'pixi.js';
 
-export const TILE_SIZE = 32;
+export const TILE_SIZE = 64;
 const LERP_FACTOR = 0.15;
 const LERP_SNAP_THRESHOLD = 0.5; // Stop lerping when close enough
 
@@ -28,7 +28,7 @@ export class Camera {
   public targetY: number = 0;
   public targetZoom: number = 1;
 
-  public readonly minZoom: number = 0.5;
+  public readonly minZoom: number = 0.3;
   public readonly maxZoom: number = 3;
 
   // Middle-mouse drag state

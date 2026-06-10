@@ -38,6 +38,8 @@ import FinanceWindow from '../../ui/FinanceWindow';
 import DistrictPanel from '../../ui/DistrictPanel';
 import NotificationToast from '../../ui/NotificationToast';
 import VIPFeed from '../../ui/VIPFeed';
+import GameEndOverlay from '../../ui/GameEndOverlay';
+import ObjectivesWidget from '../../ui/ObjectivesWidget';
 
 // Dynamic import for PixiJS (no SSR)
 const GameCanvas = dynamic(
@@ -68,6 +70,21 @@ const JANITOR_CLEAN_PER_TICK = 1.5;
 
 // How often (ticks) a VIP pipes up with a line of commentary.
 const VIP_COMMENT_INTERVAL = 120;
+
+// Staff aura: tiles within which entertainers/security lift guest happiness.
+const STAFF_AURA_RADIUS = 6;
+const ENTERTAINER_HAPPINESS_PER_TICK = 0.4;
+const SECURITY_HAPPINESS_PER_TICK = 0.15;
+
+// Win/lose tuning.
+const BANKRUPTCY_DEBT_DAYS = 30; // days continuously in debt before game over
+const VICTORY_RATING = 800;
+const VICTORY_MONEY = 1_000_000;
+const VICTORY_TOTAL_GUESTS = 1_000;
+
+// Health-inspection event: fine applied when the park is too dirty.
+const HEALTH_INSPECTION_LITTER_THRESHOLD = 30;
+const HEALTH_INSPECTION_FINE = 2_000;
 
 // Definition lookup maps (keyed by definition id), built once at module load.
 const RIDE_DEFS: Record<string, RideDefinition> = {};
@@ -233,9 +250,14 @@ function GamePageInner() {
           store.parkRating,
           districtMultiplier,
         );
+        // Active park events (festival, holiday rush) boost the spawn rate.
+        const eventSpawnMultiplier = store.activeEvent?.spawnMultiplier ?? 1;
         const interval = Math.max(
           1,
-          Math.round(baseInterval / weatherEffects.spawnRateMultiplier),
+          Math.round(
+            baseInterval /
+              (weatherEffects.spawnRateMultiplier * eventSpawnMultiplier),
+          ),
         );
 
         if (guestManager.shouldSpawn(tick, interval)) {
@@ -315,6 +337,39 @@ function GamePageInner() {
         }
       }
 
+      // --- Staff aura effects: entertainers and security lift nearby guests ---
+      // Entertainers cheer guests up; security makes guests feel safe (smaller
+      // bonus). Without these, hiring either type is a pure money sink.
+      const entertainerTiles: { x: number; y: number }[] = [];
+      const securityTiles: { x: number; y: number }[] = [];
+      for (const member of Object.values(staff)) {
+        if (member.type === StaffType.ENTERTAINER) {
+          entertainerTiles.push(member.tile);
+        } else if (member.type === StaffType.SECURITY) {
+          securityTiles.push(member.tile);
+        }
+      }
+      if (entertainerTiles.length > 0 || securityTiles.length > 0) {
+        for (const guest of Object.values(updated)) {
+          let boost = 0;
+          for (const t of entertainerTiles) {
+            if (Math.abs(t.x - guest.x) + Math.abs(t.y - guest.y) <= STAFF_AURA_RADIUS) {
+              boost += ENTERTAINER_HAPPINESS_PER_TICK;
+              break; // one entertainer aura at a time
+            }
+          }
+          for (const t of securityTiles) {
+            if (Math.abs(t.x - guest.x) + Math.abs(t.y - guest.y) <= STAFF_AURA_RADIUS) {
+              boost += SECURITY_HAPPINESS_PER_TICK;
+              break;
+            }
+          }
+          if (boost > 0) {
+            guest.happiness = Math.min(255, guest.happiness + boost);
+          }
+        }
+      }
+
       // --- Litter: guests generate it, janitors clean it (aggregate model) ---
       const guestCount = Object.keys(updated).length;
       const janitorCount = Object.values(staff).filter(
@@ -364,13 +419,16 @@ function GamePageInner() {
 
       // --- Periodic park-rating recalculation (now with real litter) ---
       if (tick % PARK_RATING_INTERVAL === 0) {
-        const rating = parkRating.calculate(
+        const baseRating = parkRating.calculate(
           updated,
           rides,
           store.districts,
           newLitter,
         );
-        useGameStore.getState().setParkRating(rating);
+        // Celebrity visits and similar events boost the visible rating.
+        const ratingMultiplier =
+          useGameStore.getState().activeEvent?.ratingMultiplier ?? 1;
+        useGameStore.getState().setParkRating(baseRating * ratingMultiplier);
       }
 
       // --- VIP commentary (Layer 2 + premium sponsor mentions) ---
@@ -443,12 +501,78 @@ function GamePageInner() {
       store.updateWeather(result.weather);
       store.updateSeason(result.season);
 
-      // Daily ride-breakdown rolls. checkBreakdown emits 'ride-broke' (bridged
-      // to a toast below); breakRide persists the broken status to the store.
+      // Daily ride-breakdown rolls (per-definition breakdownChance). The
+      // 'ride-broke' event is bridged to a toast below; breakRide persists.
       const ridesClone = structuredClone(store.rides);
       for (const rideId of Object.keys(ridesClone)) {
-        if (rideManager.checkBreakdown(ridesClone[rideId], date.day)) {
+        const def = RIDE_DEFS[ridesClone[rideId].definitionId];
+        if (rideManager.checkBreakdown(ridesClone[rideId], date.day, def)) {
           store.breakRide(rideId);
+        }
+      }
+
+      // Daily ride-rating recalculation: scenery, ride proximity, age decay,
+      // and weather all feed into excitement/intensity/nausea. Ratings are
+      // rebuilt from definition base values so they never compound.
+      const weatherMod = weatherManager.getWeatherEffects(
+        result.weather,
+      ).outdoorRideExcitementMod;
+      const ratingGrid = Grid.fromTiles(store.grid);
+      for (const rideId of Object.keys(ridesClone)) {
+        const ride = ridesClone[rideId];
+        const def = RIDE_DEFS[ride.definitionId];
+        if (!def) continue;
+        const ratings = rideManager.calculateRatings(
+          ride,
+          def,
+          ratingGrid,
+          ridesClone,
+          weatherMod,
+        );
+        store.updateRide(rideId, ratings);
+      }
+
+      // Count down the active park event.
+      const activeEvent = store.activeEvent;
+      if (activeEvent) {
+        const daysRemaining = activeEvent.daysRemaining - 1;
+        if (daysRemaining <= 0) {
+          store.setActiveEvent(null);
+          store.addNotification(`${activeEvent.name} has ended.`, 'info');
+        } else {
+          store.setActiveEvent({ ...activeEvent, daysRemaining });
+        }
+      }
+
+      // --- Lose condition: sustained bankruptcy ---
+      if (!store.gameOver) {
+        if (store.money < 0) {
+          const days = store.daysInDebt + 1;
+          store.setDaysInDebt(days);
+          if (days === Math.floor(BANKRUPTCY_DEBT_DAYS / 2)) {
+            store.addNotification(
+              `The park is in debt! ${BANKRUPTCY_DEBT_DAYS - days} days to recover before bankruptcy.`,
+              'error',
+            );
+          }
+          if (days >= BANKRUPTCY_DEBT_DAYS) {
+            store.setGameOver({
+              reason: `The park stayed in debt for ${BANKRUPTCY_DEBT_DAYS} consecutive days and has gone bankrupt.`,
+            });
+          }
+        } else if (store.daysInDebt > 0) {
+          store.setDaysInDebt(0);
+        }
+      }
+
+      // --- Win condition: rating + cash + lifetime guests milestones ---
+      if (!store.victoryAchieved && !store.gameOver) {
+        if (
+          store.parkRating >= VICTORY_RATING &&
+          store.money >= VICTORY_MONEY &&
+          store.totalGuestsAllTime >= VICTORY_TOTAL_GUESTS
+        ) {
+          store.setVictoryAchieved(true);
         }
       }
     };
@@ -487,6 +611,82 @@ function GamePageInner() {
         } of $${Math.abs(Math.round(report.netProfit)).toLocaleString()}.`,
         report.netProfit >= 0 ? 'success' : 'warning',
       );
+
+      // --- Monthly random-event roll (festival, holiday rush, etc.) ---
+      // Only one event runs at a time; a new roll is skipped while one is live.
+      if (!store.activeEvent) {
+        const rolled = weatherManager.checkRandomEvents(date);
+        if (rolled) {
+          switch (rolled.event) {
+            case 'Festival Season':
+              store.setActiveEvent({
+                name: 'Festival Season',
+                spawnMultiplier: 1.5,
+                ratingMultiplier: 1,
+                daysRemaining: 7,
+              });
+              store.addNotification(
+                '🏮 Festival Season! Guest arrivals up 50% for 7 days.',
+                'success',
+              );
+              break;
+            case 'Holiday Rush':
+              store.setActiveEvent({
+                name: 'Holiday Rush',
+                spawnMultiplier: 1.3,
+                ratingMultiplier: 1,
+                daysRemaining: 30,
+              });
+              store.addNotification(
+                '🎉 Holiday Rush! Guest arrivals up 30% this month.',
+                'success',
+              );
+              break;
+            case 'Celebrity Visit':
+              store.setActiveEvent({
+                name: 'Celebrity Visit',
+                spawnMultiplier: 1.1,
+                ratingMultiplier: 1.2,
+                daysRemaining: 3,
+              });
+              store.addNotification(
+                '⭐ A celebrity is visiting! Park rating boosted for 3 days.',
+                'success',
+              );
+              break;
+            case 'Health Inspection': {
+              if (store.litter > HEALTH_INSPECTION_LITTER_THRESHOLD) {
+                store.addMoney(
+                  -HEALTH_INSPECTION_FINE,
+                  'expenses',
+                  'Health inspection fine',
+                );
+                store.addNotification(
+                  `🧪 Health inspection failed — fined $${HEALTH_INSPECTION_FINE.toLocaleString()}. Hire more janitors!`,
+                  'error',
+                );
+              } else {
+                store.addNotification(
+                  '🧪 Health inspection passed. The park is clean.',
+                  'success',
+                );
+              }
+              break;
+            }
+          }
+        }
+      }
+    };
+
+    // Annual summary at the start of each new year.
+    const onYear = ({ date }: { date: GameDate }) => {
+      const store = useGameStore.getState();
+      store.addNotification(
+        `🎆 Year ${date.year}! Park rating ${Math.round(store.parkRating)}, ` +
+          `${store.totalGuestsAllTime.toLocaleString()} lifetime guests, ` +
+          `$${Math.round(store.money).toLocaleString()} in the bank.`,
+        'info',
+      );
     };
 
     // Bridge engine notifications into UI toasts.
@@ -512,6 +712,7 @@ function GamePageInner() {
     eventBus.on('tick', onTick);
     eventBus.on('day', onDay);
     eventBus.on('month', onMonth);
+    eventBus.on('year', onYear);
     eventBus.on('notification', onNotification);
     eventBus.on('ride-broke', onRideBroke);
 
@@ -547,6 +748,7 @@ function GamePageInner() {
       eventBus.off('tick', onTick);
       eventBus.off('day', onDay);
       eventBus.off('month', onMonth);
+      eventBus.off('year', onYear);
       eventBus.off('notification', onNotification);
       eventBus.off('ride-broke', onRideBroke);
 
@@ -705,8 +907,14 @@ function GamePageInner() {
       {/* VIP commentary feed (bottom-left) */}
       <VIPFeed />
 
+      {/* Objectives + active event (top-right) */}
+      <ObjectivesWidget />
+
       {/* Layer 100: Toast notifications */}
       <NotificationToast />
+
+      {/* Layer 200: bankruptcy / victory overlays */}
+      <GameEndOverlay />
     </div>
   );
 }

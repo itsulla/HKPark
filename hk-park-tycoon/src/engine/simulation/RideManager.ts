@@ -168,15 +168,18 @@ export class RideManager {
   /**
    * Check whether a ride breaks down on this day. Should be called once per
    * game day. Returns true if the ride broke down.
+   *
+   * The base monthly chance comes from the ride definition's breakdownChance
+   * (so a rickety drop tower at 0.10 really is riskier than a garden train at
+   * 0.02), and rides get less reliable as they age.
    */
-  checkBreakdown(ride: Ride, _dayOfMonth: number): boolean {
+  checkBreakdown(ride: Ride, _dayOfMonth: number, definition?: RideDefinition): boolean {
     if (ride.status !== 'open') {
       return false;
     }
 
-    const monthlyChance = ride.monthlyMaintenanceCost > 0
-      ? (ride.monthsOld * 0.002 + 0.05)
-      : 0.05;
+    const baseChance = definition?.breakdownChance ?? 0.05;
+    const monthlyChance = baseChance + ride.monthsOld * 0.002;
     const dailyChance = monthlyChance / 30;
 
     if (Math.random() < dailyChance) {
@@ -215,16 +218,26 @@ export class RideManager {
 
   /**
    * Calculate the current excitement, intensity, and nausea ratings for a
-   * ride, factoring in scenery, proximity to other rides, and age decay.
+   * ride, factoring in scenery, proximity to other rides, age decay, and
+   * weather.
+   *
+   * Ratings are rebuilt from the DEFINITION's base values each call (not the
+   * ride's current values) so repeated recalculation never compounds bonuses
+   * or decay.
+   *
+   * @param weatherExcitementMod Additive excitement modifier from current
+   *   weather (e.g. -0.5 in rain). All rides are treated as outdoor.
    */
   calculateRatings(
     ride: Ride,
+    definition: RideDefinition,
     grid: Grid,
     allRides: Record<string, Ride>,
+    weatherExcitementMod = 0,
   ): { excitement: number; intensity: number; nausea: number } {
-    let excitement = ride.excitement;
-    let intensity = ride.intensity;
-    let nausea = ride.nausea;
+    let excitement = definition.baseExcitement + weatherExcitementMod;
+    let intensity = definition.baseIntensity;
+    let nausea = definition.baseNausea;
 
     // Scenery bonus from nearby decorations
     const sceneryScore = grid.getSceneryScore(

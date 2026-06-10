@@ -58,6 +58,38 @@ const SHOP_CATEGORY_COLORS: Record<string, number> = {
 };
 
 // ---------------------------------------------------------------------------
+// Per-entity sprite scale multipliers (relative to footprint pixel size)
+// ---------------------------------------------------------------------------
+// wMul × footprintWidth, hMul × footprintHeight. Rides overshoot their
+// footprint so they look imposing. Tall structures (towers, ferris wheels)
+// get extra height; wide ones (coasters, boats) get extra width.
+// ---------------------------------------------------------------------------
+
+interface SpriteScale {
+  wMul: number;
+  hMul: number;
+}
+
+const RIDE_SCALE: Record<string, SpriteScale> = {
+  'harbour-ferris-wheel':      { wMul: 1.6, hMul: 2.2 },  // tall circle
+  'dragon-coaster':            { wMul: 1.8, hMul: 1.5 },  // wide track
+  'peak-tram-drop':            { wMul: 1.3, hMul: 2.8 },  // narrow + very tall
+  'dim-sum-spinner':           { wMul: 1.6, hMul: 1.6 },  // medium circle
+  'neon-night-flyer':          { wMul: 1.8, hMul: 1.8 },  // big coaster
+  'temple-garden-train':       { wMul: 1.6, hMul: 1.2 },  // long + low
+  'typhoon-twister':           { wMul: 1.5, hMul: 2.2 },  // tall spinner
+  'bamboo-scaffold-climb':     { wMul: 1.3, hMul: 2.5 },  // narrow + very tall
+  'lion-dance-carousel':       { wMul: 1.6, hMul: 1.4 },  // wide + short
+  'star-ferry-splash':         { wMul: 1.6, hMul: 1.4 },  // wide water
+  'junk-boat-cruise':          { wMul: 1.6, hMul: 1.4 },  // wide water
+  'kowloon-walled-city-maze':  { wMul: 1.5, hMul: 1.5 },  // big square
+};
+const DEFAULT_RIDE_SCALE: SpriteScale = { wMul: 1.6, hMul: 1.8 };
+
+/** Shop sprites overshoot their single tile so details are visible. */
+const SHOP_SPRITE_SCALE: SpriteScale = { wMul: 2.0, hMul: 2.5 };
+
+// ---------------------------------------------------------------------------
 // Definition lookup maps (built once at import time)
 // ---------------------------------------------------------------------------
 
@@ -89,6 +121,14 @@ const SHOP_LABEL_STYLE = new TextStyle({
   fontWeight: 'bold',
 });
 
+const BROKEN_MARKER_STYLE = new TextStyle({
+  fontFamily: 'Arial',
+  fontSize: 22,
+  fill: 0xff2e2e,
+  fontWeight: 'bold',
+  stroke: { color: 0x000000, width: 4 },
+});
+
 // ---------------------------------------------------------------------------
 // Cached label entry
 // ---------------------------------------------------------------------------
@@ -110,6 +150,9 @@ export class BuildingLayer extends Container {
   // Label cache keyed by entity ID
   private rideLabelCache: Map<string, CachedLabel> = new Map();
   private shopLabelCache: Map<string, CachedLabel> = new Map();
+
+  // Broken-ride warning markers keyed by ride ID
+  private brokenMarkers: Map<string, Text> = new Map();
 
   // Sprite instances keyed by entity ID, and the loaded textures by definition ID
   private rideSprites: Map<string, Sprite> = new Map();
@@ -197,6 +240,7 @@ export class BuildingLayer extends Container {
     const usedShopLabels = new Set<string>();
     const usedRideSprites = new Set<string>();
     const usedShopSprites = new Set<string>();
+    const usedBrokenMarkers = new Set<string>();
 
     // -- Rides --
     for (const rideId in rides) {
@@ -246,10 +290,10 @@ export class BuildingLayer extends Container {
           this.spritesContainer.addChild(sprite);
           this.rideSprites.set(rideId, sprite);
         }
-        const size = Math.max(pw, ph) * 1.15;
+        const scale = RIDE_SCALE[ride.definitionId] ?? DEFAULT_RIDE_SCALE;
         sprite.texture = tex;
-        sprite.width = size;
-        sprite.height = size;
+        sprite.width = pw * scale.wMul;
+        sprite.height = ph * scale.hMul;
         sprite.x = px + pw / 2;
         sprite.y = py + ph;
         sprite.visible = true;
@@ -257,9 +301,38 @@ export class BuildingLayer extends Container {
         // Footprint status outline on the ground (open/broken/closed cue).
         this.gfx.rect(px + 1, py + 1, pw - 2, ph - 2);
         this.gfx.stroke({ color: borderColor, width: 2, alpha: 0.7 });
+        // Broken rides get an unmissable warning marker.
+        if (ride.status === 'broken') {
+          usedBrokenMarkers.add(rideId);
+          let marker = this.brokenMarkers.get(rideId);
+          if (!marker) {
+            marker = new Text({ text: '⚠ BROKEN', style: BROKEN_MARKER_STYLE });
+            marker.anchor.set(0.5, 1);
+            this.labelsContainer.addChild(marker);
+            this.brokenMarkers.set(rideId, marker);
+          }
+          marker.x = px + pw / 2;
+          marker.y = py - 4;
+          marker.visible = true;
+        }
         const cached = this.rideLabelCache.get(rideId);
         if (cached) cached.text.visible = false;
         continue;
+      }
+
+      // Broken marker for the rect-fallback path too.
+      if (ride.status === 'broken') {
+        usedBrokenMarkers.add(rideId);
+        let marker = this.brokenMarkers.get(rideId);
+        if (!marker) {
+          marker = new Text({ text: '⚠ BROKEN', style: BROKEN_MARKER_STYLE });
+          marker.anchor.set(0.5, 1);
+          this.labelsContainer.addChild(marker);
+          this.brokenMarkers.set(rideId, marker);
+        }
+        marker.x = px + pw / 2;
+        marker.y = py - 4;
+        marker.visible = true;
       }
 
       // Fallback: coloured rect + name label
@@ -321,10 +394,9 @@ export class BuildingLayer extends Container {
           this.spritesContainer.addChild(sprite);
           this.shopSprites.set(shopId, sprite);
         }
-        const size = TILE_SIZE * 1.25;
         sprite.texture = tex;
-        sprite.width = size;
-        sprite.height = size;
+        sprite.width = TILE_SIZE * SHOP_SPRITE_SCALE.wMul;
+        sprite.height = TILE_SIZE * SHOP_SPRITE_SCALE.hMul;
         sprite.x = px + TILE_SIZE / 2;
         sprite.y = py + TILE_SIZE;
         sprite.visible = true;
@@ -383,6 +455,13 @@ export class BuildingLayer extends Container {
         this.spritesContainer.removeChild(sp);
         sp.destroy();
         this.shopSprites.delete(id);
+      }
+    });
+    this.brokenMarkers.forEach((marker, id) => {
+      if (!usedBrokenMarkers.has(id)) {
+        this.labelsContainer.removeChild(marker);
+        marker.destroy();
+        this.brokenMarkers.delete(id);
       }
     });
 
