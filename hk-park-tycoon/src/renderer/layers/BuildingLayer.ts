@@ -70,24 +70,27 @@ interface SpriteScale {
   hMul: number;
 }
 
+// Tuned for the dense AI-painted art (fills its canvas far more than the old
+// low-poly renders did) — roughly 0.8x the previous multipliers so rides stop
+// swallowing adjacent paths while still overshooting their footprint a little.
 const RIDE_SCALE: Record<string, SpriteScale> = {
-  'harbour-ferris-wheel':      { wMul: 1.6, hMul: 2.2 },  // tall circle
-  'dragon-coaster':            { wMul: 1.8, hMul: 1.5 },  // wide track
-  'peak-tram-drop':            { wMul: 1.3, hMul: 2.8 },  // narrow + very tall
-  'dim-sum-spinner':           { wMul: 1.6, hMul: 1.6 },  // medium circle
-  'neon-night-flyer':          { wMul: 1.8, hMul: 1.8 },  // big coaster
-  'temple-garden-train':       { wMul: 1.6, hMul: 1.2 },  // long + low
-  'typhoon-twister':           { wMul: 1.5, hMul: 2.2 },  // tall spinner
-  'bamboo-scaffold-climb':     { wMul: 1.3, hMul: 2.5 },  // narrow + very tall
-  'lion-dance-carousel':       { wMul: 1.6, hMul: 1.4 },  // wide + short
-  'star-ferry-splash':         { wMul: 1.6, hMul: 1.4 },  // wide water
-  'junk-boat-cruise':          { wMul: 1.6, hMul: 1.4 },  // wide water
-  'kowloon-walled-city-maze':  { wMul: 1.5, hMul: 1.5 },  // big square
+  'harbour-ferris-wheel':      { wMul: 1.3, hMul: 1.75 }, // tall circle
+  'dragon-coaster':            { wMul: 1.45, hMul: 1.25 }, // wide track
+  'peak-tram-drop':            { wMul: 1.05, hMul: 2.2 },  // narrow + very tall
+  'dim-sum-spinner':           { wMul: 1.3, hMul: 1.3 },  // medium circle
+  'neon-night-flyer':          { wMul: 1.45, hMul: 1.45 }, // big coaster
+  'temple-garden-train':       { wMul: 1.3, hMul: 1.0 },  // long + low
+  'typhoon-twister':           { wMul: 1.2, hMul: 1.75 }, // tall spinner
+  'bamboo-scaffold-climb':     { wMul: 1.05, hMul: 2.0 },  // narrow + very tall
+  'lion-dance-carousel':       { wMul: 1.3, hMul: 1.15 }, // wide + short
+  'star-ferry-splash':         { wMul: 1.3, hMul: 1.15 }, // wide water
+  'junk-boat-cruise':          { wMul: 1.3, hMul: 1.15 }, // wide water
+  'kowloon-walled-city-maze':  { wMul: 1.2, hMul: 1.2 },  // big square
 };
-const DEFAULT_RIDE_SCALE: SpriteScale = { wMul: 1.6, hMul: 1.8 };
+const DEFAULT_RIDE_SCALE: SpriteScale = { wMul: 1.3, hMul: 1.45 };
 
 /** Shop sprites overshoot their single tile so details are visible. */
-const SHOP_SPRITE_SCALE: SpriteScale = { wMul: 2.0, hMul: 2.5 };
+const SHOP_SPRITE_SCALE: SpriteScale = { wMul: 1.6, hMul: 2.0 };
 
 // ---------------------------------------------------------------------------
 // Definition lookup maps (built once at import time)

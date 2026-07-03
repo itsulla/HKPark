@@ -208,7 +208,7 @@ export class TerrainLayer extends Container {
             this.decoContainer.addChild(deco);
             this.decoSprites.set(key, deco);
           }
-          const size = TILE_SIZE * 2.0;
+          const size = TILE_SIZE * 1.7;
           deco.width = size;
           deco.height = size;
           deco.x = px + TILE_SIZE / 2;
