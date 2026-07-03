@@ -31,6 +31,7 @@ import {
   RideDefinition,
 } from '../engine/types';
 import ridesData from '../data/rides.json';
+import SoundManager from '../audio/SoundManager';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -220,6 +221,7 @@ export default function GameCanvas() {
     switch (store.selectedTool) {
       case ToolType.BUILD_PATH: {
         const ok = store.buildPath(tileX, tileY);
+        if (ok) SoundManager.play('click');
         if (!ok) store.addNotification('Cannot build path here', 'warning');
         break;
       }
@@ -232,6 +234,7 @@ export default function GameCanvas() {
             tileY,
             store.placementRotation,
           );
+          if (ok) SoundManager.play('build');
           if (!ok) store.addNotification('Must place ride on empty tiles adjacent to a path', 'warning');
         }
         break;
@@ -239,6 +242,7 @@ export default function GameCanvas() {
       case ToolType.PLACE_SHOP:
         if (store.placementDefinitionId) {
           const ok = store.placeShop(store.placementDefinitionId, tileX, tileY);
+          if (ok) SoundManager.play('build');
           if (!ok) store.addNotification('Must place shop on empty tile adjacent to a path', 'warning');
         }
         break;
@@ -246,12 +250,14 @@ export default function GameCanvas() {
       case ToolType.PLACE_DECORATION:
         if (store.placementDefinitionId) {
           const ok = store.placeDecoration(store.placementDefinitionId, tileX, tileY);
+          if (ok) SoundManager.play('build');
           if (!ok) store.addNotification('Cannot place decoration here', 'warning');
         }
         break;
 
       case ToolType.DEMOLISH: {
         const ok = store.demolish(tileX, tileY);
+        if (ok) SoundManager.play('demolish');
         if (!ok) store.addNotification('Nothing to demolish here', 'warning');
         break;
       }
@@ -502,6 +508,10 @@ export default function GameCanvas() {
           gridVersionRef.current,
         );
         buildingLayer.update(state.rides, state.shops, viewportBounds);
+        // Idle sway (paused game = frozen park).
+        if (state.speed !== GameSpeed.PAUSED) {
+          buildingLayer.animate(performance.now());
+        }
         guestLayer.update(state.guests, zoom, viewportBounds);
         staffLayer.update(state.staff, viewportBounds);
         ambientLayer.update(

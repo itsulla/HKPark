@@ -40,6 +40,8 @@ import NotificationToast from '../../ui/NotificationToast';
 import VIPFeed from '../../ui/VIPFeed';
 import GameEndOverlay from '../../ui/GameEndOverlay';
 import ObjectivesWidget from '../../ui/ObjectivesWidget';
+import SoundBridge from '../../ui/SoundBridge';
+import OnboardingHint from '../../ui/OnboardingHint';
 
 // Dynamic import for PixiJS (no SSR)
 const GameCanvas = dynamic(
@@ -910,11 +912,17 @@ function GamePageInner() {
       {/* Objectives + active event (top-right) */}
       <ObjectivesWidget />
 
+      {/* New-park onboarding steps (top-left) */}
+      <OnboardingHint />
+
       {/* Layer 100: Toast notifications */}
       <NotificationToast />
 
       {/* Layer 200: bankruptcy / victory overlays */}
       <GameEndOverlay />
+
+      {/* Audio: notification sounds + ambient loop + M mute key */}
+      <SoundBridge />
     </div>
   );
 }

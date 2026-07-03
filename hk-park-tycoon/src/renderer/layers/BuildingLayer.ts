@@ -154,6 +154,9 @@ export class BuildingLayer extends Container {
   // Broken-ride warning markers keyed by ride ID
   private brokenMarkers: Map<string, Text> = new Map();
 
+  // Rides currently broken (frozen — excluded from the idle sway animation)
+  private brokenRideIds: Set<string> = new Set();
+
   // Sprite instances keyed by entity ID, and the loaded textures by definition ID
   private rideSprites: Map<string, Sprite> = new Map();
   private shopSprites: Map<string, Sprite> = new Map();
@@ -206,6 +209,32 @@ export class BuildingLayer extends Container {
   }
 
   /**
+   * Idle sway animation — call every frame. Sprites are bottom-anchored so a
+   * tiny rotation reads as the ride gently operating. Runs on the transform
+   * only (no redraw). Broken rides stay frozen.
+   */
+  animate(timeMs: number): void {
+    const t = timeMs / 900;
+    this.rideSprites.forEach((sprite, id) => {
+      if (!sprite.visible) return;
+      if (this.brokenRideIds.has(id)) {
+        sprite.rotation = 0;
+        return;
+      }
+      // Deterministic phase per ride so they don't sway in lockstep.
+      let phase = 0;
+      for (let i = 0; i < id.length; i++) phase = (phase + id.charCodeAt(i)) % 97;
+      sprite.rotation = Math.sin(t + phase) * 0.02;
+    });
+    this.shopSprites.forEach((sprite, id) => {
+      if (!sprite.visible) return;
+      let phase = 0;
+      for (let i = 0; i < id.length; i++) phase = (phase + id.charCodeAt(i)) % 97;
+      sprite.rotation = Math.sin(t * 0.7 + phase) * 0.008;
+    });
+  }
+
+  /**
    * Redraw rides and shops, but only when something actually changed.
    *
    * @param rides           - Record of all rides
@@ -241,6 +270,12 @@ export class BuildingLayer extends Container {
     const usedRideSprites = new Set<string>();
     const usedShopSprites = new Set<string>();
     const usedBrokenMarkers = new Set<string>();
+
+    // Refresh the broken set for the sway animation.
+    this.brokenRideIds.clear();
+    for (const rideId in rides) {
+      if (rides[rideId].status === 'broken') this.brokenRideIds.add(rideId);
+    }
 
     // -- Rides --
     for (const rideId in rides) {

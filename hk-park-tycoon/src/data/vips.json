@@ -32,7 +32,12 @@
       "Again! Let's go again!"
     ],
     "avatarEmoji": "🦾",
-    "brandAffinity": null
+    "brandAffinity": {
+      "brand": "Typhoon Energy",
+      "product": "Typhoon Energy Drink",
+      "relationship": "sponsored athlete",
+      "mentionFrequency": 0.5
+    }
   },
   {
     "id": "auntie-wong",
@@ -47,7 +52,12 @@
       "In my day the rides were cheaper."
     ],
     "avatarEmoji": "👵",
-    "brandAffinity": null
+    "brandAffinity": {
+      "brand": "Golden Wok",
+      "product": "Golden Wok Noodles",
+      "relationship": "loyal customer for 30 years",
+      "mentionFrequency": 0.4
+    }
   },
   {
     "id": "dj-kowloon",
